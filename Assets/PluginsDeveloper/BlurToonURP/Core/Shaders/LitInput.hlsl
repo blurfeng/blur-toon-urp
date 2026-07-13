@@ -43,6 +43,16 @@ half _ToggleNormalMapOnHighLight; //开关 高光
 half _ToggleNormalMapOnRimLight; //开关 边缘光
 
 
+//-------- HighLight 镜面高光 --------
+//（_ToggleHighLight 仅用于记录并驱动关键词 _HIGHLIGHT_ON，HLSL 不读取，故不在此声明）
+half4 _ColorHighLightColor; //高光颜色
+half _FloatHighLightIntensity; //高光强度
+half _FloatHighLightSize; //高光大小（范围）
+half _FloatHighLightBlur; //高光边缘羽化
+float4 _TexHighLightMaskMap_ST; //高光遮罩贴图 ST
+half _FloatHighLightMaskMapIntensity; //高光遮罩贴图 强度
+
+
 //-------- RimLight 边缘光 --------
 half _ToggleRimLight; //开关 边缘光
 half4 _ColorRimLightColor; //颜色

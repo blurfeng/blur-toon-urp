@@ -12,6 +12,7 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
+  - _HIGHLIGHT_ON
   - _OUTLINE_WIDTH_SAME
   - _RIMLIGHT_ON
   - _RIMLIGHT_SHADEMASK_ON
@@ -76,6 +77,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TexHighLightMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _TexRimLightMaskMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -136,6 +141,10 @@ Material:
     - _FloatBuiltInLightZAxis: -1
     - _FloatEnvLightIntensity: 2
     - _FloatGlobalExposureIntensity: 1
+    - _FloatHighLightBlur: 0.6
+    - _FloatHighLightIntensity: 0.5
+    - _FloatHighLightMaskMapIntensity: 1
+    - _FloatHighLightSize: 0.5
     - _FloatOuelintWidthType: 0
     - _FloatOutlineBaseMapBlendIntensity: 1
     - _FloatOutlineType: 0
@@ -187,6 +196,7 @@ Material:
     - _ToggleGlobalLightBaseShade2: 1
     - _ToggleGlobalLightRimLight: 1
     - _ToggleGlobalLightRimLightShade: 1
+    - _ToggleHighLight: 1
     - _ToggleLightHorLockBaseMap: 0
     - _ToggleLightHorLockRimLight: 0
     - _ToggleNormalMapOnBaseMap: 0
@@ -211,6 +221,7 @@ Material:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBuiltInLightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorHighLightColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorOutlineColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}
     - _ColorRimLightColor: {r: 1, g: 1, b: 1, a: 0.29803923}
     - _ColorRimLightShadeColor: {r: 1, g: 1, b: 1, a: 0.29803923}

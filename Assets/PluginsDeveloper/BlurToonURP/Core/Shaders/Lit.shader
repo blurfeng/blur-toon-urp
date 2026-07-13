@@ -32,8 +32,18 @@ Shader "BlurToonURP/Lit"
         _ToggleNormalMapOnBaseMap ("NormalMap On BaseMap", Float) = 0 //开关 基础贴图
         _ToggleNormalMapOnHighLight ("NormalMap On HighLight", Float) = 0 //开关 高光
         _ToggleNormalMapOnRimLight ("NormalMap On RimLight", Float) = 0 //开关 边缘光
-        
-        
+
+
+        //----------- HighLight 镜面高光 -----------
+        _ToggleHighLight ("HighLight Toggle", Float) = 0 //高光开关 ●仅用于记录 设置关键词开启
+        [HDR]_ColorHighLightColor ("HighLight Color", Color) = (1, 1, 1, 1) //颜色
+        _FloatHighLightIntensity ("HighLight Intensity", Range(0, 1)) = 0.5 //强度
+        _FloatHighLightSize ("HighLight Size", Range(0, 1)) = 0.5 //大小（范围）
+        _FloatHighLightBlur ("HighLight Blur", Range(0, 1)) = 0.1 //边缘羽化
+        _TexHighLightMaskMap ("HighLight MaskMap", 2D) = "white" {} //遮罩贴图
+        _FloatHighLightMaskMapIntensity ("HighLight MaskMap Intensity", Range(0, 1)) = 1 //遮罩贴图 强度
+
+
         //----------- Outline 外描边 -----------
         _FloatOutlineType("Outline Type", Float) = 0 //外描边类型 0=VertexNormal 1=VertexColor 2=VertexTangent
         _FloatOutlineWidthType("Outline Width Type", Float) = 0 //外描边宽度类型 ●记录值 确认对应的keywords设置
@@ -134,6 +144,9 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _BASEMAP_SHADE_THRESHOLDMAP_ON //暗部阈值贴图
 			#pragma shader_feature_local _ADDLIGHT_ON // 附加光照
             #pragma shader_feature_local _BUILTINLIGHT_ON // 内置光照
+            //镜面高光
+            #pragma shader_feature_local _HIGHLIGHT_ON
+            #pragma shader_feature_local _HIGHLIGHT_MASKMAP_ON
             //边缘光
             #pragma shader_feature_local _RIMLIGHT_ON
             #pragma shader_feature_local _RIMLIGHT_SHADEMASK_ON
@@ -191,7 +204,12 @@ Shader "BlurToonURP/Lit"
             #if defined(_RIMLIGHT_ON) && defined(_RIMLIGHT_MASKMAP_ON)
             TEXTURE2D(_TexRimLightMaskMap); SAMPLER(sampler_TexRimLightMaskMap);
             #endif
-            
+
+            //高光遮罩贴图
+            #if defined(_HIGHLIGHT_ON) && defined(_HIGHLIGHT_MASKMAP_ON)
+            TEXTURE2D(_TexHighLightMaskMap); SAMPLER(sampler_TexHighLightMaskMap);
+            #endif
+
             //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
             #include "LitInput.hlsl"
             
@@ -342,8 +360,39 @@ Shader "BlurToonURP/Lit"
                 //混合颜色
                 float3 colorFinalBlend = lerp(colorBaseMapFinal, lerp(colorBaseMapShade1, colorBaseMapShade2, lightIntensityShade2), lightIntensityShade1);
                 //-------- BaseMap 基础贴图 -------- End
-                
-                
+
+
+                //-------- HighLight 镜面高光 -------- Start
+                #if defined(_HIGHLIGHT_ON)
+                //高光使用的法线（根据开关，使用顶点法线或法线贴图法线）
+                float3 normalDirOnHighLight = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnHighLight);
+                //半程向量（沿用受内置光照影响后的 lightDirWS，使高光跟随场景光/内置光方向）
+                float3 highLightHalfDir = normalize(lightDirWS + viewDirWS);
+                float highLightNdotH = saturate(dot(normalDirOnHighLight, highLightHalfDir));
+                //高光大小：_FloatHighLightSize[0,1] 映射到镜面反射幂[512,4]，值越大幂越小、高光范围越大
+                float highLightPower = exp2(lerp(9, 2, _FloatHighLightSize));
+                float highLightSpec = pow(highLightNdotH, highLightPower);
+                //卡通化：以 0.5 为分界做软阶跃，_FloatHighLightBlur 控制边缘羽化（0=硬边缘）
+                float highLightBlur = max(_FloatHighLightBlur * 0.5, 0.0001);
+                float highLightFactor = smoothstep(0.5 - highLightBlur, 0.5 + highLightBlur, highLightSpec);
+                //接收阴影时，阴影处不出现高光
+                highLightFactor *= lerp(1, shadowAttenuation, _ToggleShadowReceive);
+
+                //高光遮罩贴图（在遮罩 R 通道绘制高光分布）
+                #if defined(_HIGHLIGHT_MASKMAP_ON)
+                float highLightMaskValue = SAMPLE_TEXTURE2D(_TexHighLightMaskMap, sampler_TexHighLightMaskMap, TRANSFORM_TEX(uv, _TexHighLightMaskMap)).r;
+                highLightFactor = lerp(highLightFactor, highLightFactor * highLightMaskValue, _FloatHighLightMaskMapIntensity);
+                #endif
+
+                //高光颜色：HDR颜色 × 透明度 × 强度，并混合光照颜色使其跟随光照
+                half3 colorHighLight = _ColorHighLightColor.rgb * _ColorHighLightColor.a * _FloatHighLightIntensity;
+                colorHighLight *= colorLightBlend;
+                //叠加到最终颜色
+                colorFinalBlend += colorHighLight * highLightFactor;
+                #endif
+                //-------- HighLight 镜面高光 -------- End
+
+
                 //-------- RimLight 边缘光 -------- Start
                 #if defined(_RIMLIGHT_ON)
                 //计算边缘光颜色，按配置混合光照颜色

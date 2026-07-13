@@ -11,6 +11,7 @@ namespace BlurToonURP.EditorGUIx
 
             EditorGUIx.FoldoutPanel("【BaseMap 基础贴图】基础贴图及暗部贴图", PanelMainBasicMap);
             EditorGUIx.FoldoutPanel("【NormalMap 法线贴图】强度、效果开关", PanelMainNormalMap);
+            EditorGUIx.FoldoutPanel("【HighLight 镜面高光】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【Outline 外描边】粗细、颜色", PanelMainOutline);
             EditorGUIx.FoldoutPanel("【RimLight 边缘光】颜色、大小、遮罩", PanelMainRimLight);
             EditorGUIx.FoldoutPanel("【LightSetting 光照设置】光照开关、光照强度", PanelMainGlobalLight);
@@ -106,7 +107,61 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.SwitchButton("边缘光", GetMaterialProperty("_ToggleNormalMapOnRimLight"));
         }
         #endregion
-        
+
+        #region HighLight 镜面高光
+        private static readonly GUIContent ContentHighLightMaskTex = new GUIContent("遮罩贴图", "在遮罩贴图中绘制高光的分布与强度（采样R通道），uv坐标与基础贴图相同。");
+
+        /// <summary>
+        /// 关键词 镜面高光 开启
+        /// </summary>
+        private const string MatKeywordHighLightOn = "_HIGHLIGHT_ON";
+        /// <summary>
+        /// 关键词 镜面高光 遮罩贴图 开启
+        /// </summary>
+        private const string MatKeywordHighLightMaskMapOn = "_HIGHLIGHT_MASKMAP_ON";
+
+        /// <summary>
+        /// 主面板 镜面高光
+        /// </summary>
+        private void PanelMainHighLight()
+        {
+            //条目 高光主开关
+            var matPropToggleHighLight = GetMaterialProperty("_ToggleHighLight");
+            EditorGUIx.SwitchButton("镜面高光-主开关", matPropToggleHighLight);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordHighLightOn, "_ToggleHighLight");
+            if (!matPropToggleHighLight.floatValue.Equals(1))
+                return;
+
+            EditorGUIx.LabelItem("高光 设置");
+            //条目 颜色
+            MaterialEditor.ColorProperty(GetMaterialProperty("_ColorHighLightColor"), "颜色");
+            //条目 强度
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightIntensity"), "强度");
+            //条目 大小（范围）
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightSize"), "大小");
+            //条目 边缘羽化
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightBlur"), "边缘羽化");
+            EditorGUILayout.Space();
+
+            //子面板 遮罩贴图
+            EditorGUIx.FoldoutPanel("遮罩贴图", () =>
+            {
+                EditorGUIx.LabelItem(new GUIContent("遮罩绘制高光", "绘制所有UV位置的高光遮罩，值越大高光越明显。"));
+                //条目 高光遮罩贴图
+                var matPropTexHighLightMaskMap = GetMaterialProperty("_TexHighLightMaskMap");
+                MaterialEditor.TexturePropertySingleLine(ContentHighLightMaskTex, matPropTexHighLightMaskMap);
+                MaterialEditor.TextureScaleOffsetProperty(matPropTexHighLightMaskMap);
+                //设置 关键词（多选编辑：按各材质是否指定遮罩贴图同步）
+                ApplyKeywordByTexture(MatKeywordHighLightMaskMapOn, "_TexHighLightMaskMap");
+
+                //条目 遮罩强度
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightMaskMapIntensity"), "遮罩强度");
+            }
+            , EditorGUIx.EFoldoutStyleType.Sub);
+        }
+        #endregion
+
         #region Outline 外描边
         private static readonly GUIContent ContentOutline = new GUIContent("外描边-主开关", "设置外描边开启或关闭。");
         private static readonly GUIContent ContentOutlineType = new GUIContent("描边类型", "法线(顶点色法线)外扩描边。 VertexNormal : 顶点法线，VertexColor : 顶点颜色");
