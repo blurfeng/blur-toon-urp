@@ -526,6 +526,110 @@ Shader "BlurToonURP/Lit"
             ENDHLSL
         }
         
+        //阴影投射
+        //向场景投射阴影。由编辑器"阴影设置"中的"阴影投射"开关(SetShaderPassEnabled)控制此Pass的启用。
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags {"LightMode" = "ShadowCaster"}
+
+            //只写入深度，不输出颜色
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+
+            // Keywords ------------------------------------- Start
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            // 点光源/聚光灯阴影投射时，光照方向按逐顶点位置计算
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            // Keywords ------------------------------------- End
+
+            #pragma vertex vert //顶点着色器
+            #pragma fragment frag //片元着色器
+
+            //URP常用的核心方法库
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            //Shadows.hlsl中使用了LerpWhiteTo，其定义在core包的CommonMaterial.hlsl中，需在其之前引入。
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            //由URP阴影渲染流程设置的全局变量
+            #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
+            float3 _LightPosition; //当前投射阴影的点光源/聚光灯世界位置
+            #else
+            float3 _LightDirection; //当前投射阴影的方向光世界方向
+            #endif
+
+            //顶点着色器 输入数据结构
+            struct Attributes
+            {
+                float4 positionOS : POSITION; //对象空间顶点位置
+                float3 normalOS   : NORMAL; //法线
+
+                //GPUInstance功能相关宏 用于传递ID数据
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            //片元着色器 输入数据结构
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION; //裁剪空间位置
+
+                //GPUInstance功能相关宏 用于传递ID数据
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            //计算应用了阴影偏移(法线偏移/深度偏移)后的裁剪空间位置，避免阴影粉刺(Shadow Acne)与漏光(Peter Panning)
+            float4 GetShadowPositionHClip(Attributes IN)
+            {
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(IN.normalOS);
+
+                //根据阴影来源计算世界空间光照方向
+                #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
+                float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+                #else
+                float3 lightDirectionWS = _LightDirection;
+                #endif
+
+                //应用阴影偏移后转换到裁剪空间
+                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+
+                //将深度限制在近裁剪面，防止阴影被近裁剪面裁掉
+                #if UNITY_REVERSED_Z
+                positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+                #else
+                positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+                #endif
+
+                return positionCS;
+            }
+
+            Varyings vert(Attributes IN)
+            {
+                Varyings OUT = (Varyings)0;
+
+                //GPUInstance功能相关宏。
+                UNITY_SETUP_INSTANCE_ID(IN);
+                UNITY_TRANSFER_INSTANCE_ID(IN, OUT);
+
+                OUT.positionCS = GetShadowPositionHClip(IN);
+                return OUT;
+            }
+
+            half4 frag(Varyings IN) : SV_Target
+            {
+                //阴影Pass只需要深度，不输出颜色
+                return 0;
+            }
+
+            ENDHLSL
+        }
+
         //外描边
         Pass
         {
@@ -634,7 +738,7 @@ Shader "BlurToonURP/Lit"
                 //描边类型，通过lerp和step构建的if选择器
                 float3 moveDir =
                     lerp(normalInput.normalWS.rgb,
-                    lerp(colorDir, tangentWS, step(1.01, _FloatOutlineType)),
+                    lerp(colorDir, tangentWS.xyz, step(1.01, _FloatOutlineType)),
                     step(0.01, _FloatOutlineType)
                     );
                 moveDir = normalize(moveDir);

@@ -9,6 +9,8 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: 0_Face
   m_Shader: {fileID: 4800000, guid: 23f4a6e7438a6b949b99b95ccbdaa3cc, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - _ADDLIGHT_ON
   - _BASEMAP_SHADE_THRESHOLDMAP_ON
@@ -27,6 +29,7 @@ Material:
   stringTagMap:
     RenderType: Opaque
   disabledShaderPasses: []
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -192,6 +195,8 @@ Material:
     - _ToggleLightHorLockBaseMap: 1
     - _ToggleLightHorLockRimLight: 1
     - _ToggleNormalMapOnBaseMap: 0
+    - _ToggleNormalMapOnHighLight: 0
+    - _ToggleNormalMapOnRimLight: 0
     - _ToggleOutlineBaseMapBlend: 1
     - _ToggleRimLight: 1
     - _ToggleRimLightHard: 0

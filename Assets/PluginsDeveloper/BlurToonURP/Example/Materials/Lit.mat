@@ -9,7 +9,12 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: Lit
   m_Shader: {fileID: 4800000, guid: 23f4a6e7438a6b949b99b95ccbdaa3cc, type: 3}
-  m_ValidKeywords: []
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _ADDLIGHT_ON
+  - _OUTLINE_ON
+  - _OUTLINE_WIDTH_SAME
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -17,6 +22,7 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -64,6 +70,14 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TexRimLightMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexShadeThresholdMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -79,6 +93,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaClip: 0
+    - _BaseMapBlendColorIntensity: 0
     - _Blend: 0
     - _BumpScale: 1
     - _ClearCoatMask: 0
@@ -89,6 +104,39 @@ Material:
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _EnvironmentReflections: 1
+    - _FloatAddLightIntensity: 1
+    - _FloatBaseMapExposureIntensity: 1
+    - _FloatBaseMapShade1ExposureIntensity: 1
+    - _FloatBaseMapShade2ExposureIntensity: 1
+    - _FloatBrightShade1Blur: 0.1
+    - _FloatBrightShade1Step: 0.5
+    - _FloatBuiltInLightAxisX: 1
+    - _FloatBuiltInLightAxisY: 1
+    - _FloatBuiltInLightAxisZ: -1
+    - _FloatBuiltInLightColorBlend: 1
+    - _FloatBuiltInLightDirBlend: 0.5
+    - _FloatEnvLightIntensity: 2
+    - _FloatGlobalExposureIntensity: 1
+    - _FloatOutlineBaseMapBlendIntensity: 1
+    - _FloatOutlineType: 0
+    - _FloatOutlineWidth: 1.5
+    - _FloatOutlineWidthType: 0
+    - _FloatRealtimeLightIntensity: 5
+    - _FloatRimLightInsideDistance: 0.18
+    - _FloatRimLightIntensity: 0.8
+    - _FloatRimLightMaskMapIntensity: 0
+    - _FloatRimLightShadeColorIntensity: 0.8
+    - _FloatRimLightShadeMaskIntensity: 1
+    - _FloatRimLightShadeMaskOffset: 0.4
+    - _FloatShade1Shade2Blur: 0.1
+    - _FloatShade1Shade2Step: 0.4
+    - _FloatShadeThresholdMapIntensity: 0.5
+    - _FloatShadowIntensity: 0
+    - _GlobalLightBaseMapMixedIntensity: 0.5
+    - _GlobalLightBaseShade1MixedIntensity: 0.5
+    - _GlobalLightBaseShade2MixedIntensity: 0.5
+    - _GlobalLightRimLightMixedIntensity: 0.5
+    - _GlobalLightRimLightShadeMixedIntensity: 0.5
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
@@ -102,11 +150,40 @@ Material:
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _Surface: 0
+    - _ToggleAddLight: 1
+    - _ToggleBuiltInLight: 0
+    - _ToggleBuiltInLightColor: 0
+    - _ToggleGlobalLightBaseMap: 1
+    - _ToggleGlobalLightBaseShade1: 1
+    - _ToggleGlobalLightBaseShade2: 1
+    - _ToggleGlobalLightRimLight: 1
+    - _ToggleGlobalLightRimLightShade: 1
+    - _ToggleLightHorLockBaseMap: 0
+    - _ToggleLightHorLockRimLight: 0
+    - _ToggleNormalMapOnBaseMap: 0
+    - _ToggleNormalMapOnHighLight: 0
+    - _ToggleNormalMapOnRimLight: 0
+    - _ToggleOutlineBaseMapBlend: 1
+    - _ToggleRimLight: 0
+    - _ToggleRimLightHard: 0
+    - _ToggleRimLightShadeColor: 0
+    - _ToggleRimLightShadeColorHard: 0
+    - _ToggleRimLightShadeMask: 0
+    - _ToggleShadeThresholdMap: 0
+    - _ToggleShadowCaster: 1
+    - _ToggleShadowReceive: 1
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorBuiltInLightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorOutlineColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}
+    - _ColorRimLightColor: {r: 1, g: 1, b: 1, a: 0.3}
+    - _ColorRimLightShadeColor: {r: 1, g: 1, b: 1, a: 0.3}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _Shade1Color: {r: 0.7, g: 0.7, b: 0.7, a: 1}
+    - _Shade2Color: {r: 0.4, g: 0.4, b: 0.4, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
