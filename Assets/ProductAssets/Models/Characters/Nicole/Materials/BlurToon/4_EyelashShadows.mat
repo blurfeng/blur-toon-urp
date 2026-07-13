@@ -176,6 +176,7 @@ Material:
     - _GlobalLightBaseMapMixedIntensity: 0.5
     - _GlobalLightBaseShade1MixedIntensity: 0.5
     - _GlobalLightBaseShade2MixedIntensity: 0.5
+    - _GlobalLightOutlineMixedIntensity: 0.5
     - _GlobalLightRimLightMixedIntensity: 0.5
     - _GlobalLightRimLightShadeMixedIntensity: 0.5
     - _GlossMapScale: 1
@@ -205,6 +206,7 @@ Material:
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
+    - _ToggleGlobalLightOutline: 1
     - _ToggleGlobalLightRimLight: 1
     - _ToggleGlobalLightRimLightShade: 1
     - _ToggleHighLight: 0

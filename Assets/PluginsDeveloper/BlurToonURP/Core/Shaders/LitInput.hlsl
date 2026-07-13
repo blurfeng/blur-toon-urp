@@ -95,6 +95,8 @@ half _ToggleGlobalLightRimLight; //边缘光
 half _GlobalLightRimLightMixedIntensity; //边缘光和光照颜色的混合强度 0-1
 half _ToggleGlobalLightRimLightShade; //边缘光暗部
 half _GlobalLightRimLightShadeMixedIntensity; //边缘光暗部和光照颜色的混合强度 0-1
+half _ToggleGlobalLightOutline; //描边
+half _GlobalLightOutlineMixedIntensity; //描边和光照颜色的混合强度 0-1
 
 //阴影设置
 half _ToggleShadowReceive; //开关 阴影接收

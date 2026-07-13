@@ -458,6 +458,11 @@ namespace BlurToonURP.EditorGUIx
             this.SwitchButtonAndSubFloat(
                 "暗部边缘光", GetMaterialProperty("_ToggleGlobalLightRimLightShade"),
                 "强度", GetMaterialProperty("_GlobalLightRimLightShadeMixedIntensity"));
+
+            //描边受光照与阴影影响（阴影部分同时受“阴影设置”里的阴影接收开关控制）
+            this.SwitchButtonAndSubFloat(
+                "描边", GetMaterialProperty("_ToggleGlobalLightOutline"),
+                "强度", GetMaterialProperty("_GlobalLightOutlineMixedIntensity"));
         }
         #endregion
 

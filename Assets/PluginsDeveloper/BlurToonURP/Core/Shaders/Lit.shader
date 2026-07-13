@@ -96,6 +96,8 @@ Shader "BlurToonURP/Lit"
         _GlobalLightRimLightMixedIntensity ("GlobalLight RimLight Mixed Intensity", Range(0.001, 1)) = 0.5//边缘光和光照颜色的混合强度 0-1
         _ToggleGlobalLightRimLightShade ("GlobalLight RimLightShade Toggle", Float) = 1 //边缘光暗部
         _GlobalLightRimLightShadeMixedIntensity ("GlobalLight RimLightShade Mixed Intensity", Range(0.001, 1)) = 0.5//边缘光暗部和光照颜色的混合强度 0-1
+        _ToggleGlobalLightOutline ("GlobalLight Outline Toggle", Float) = 1 //描边
+        _GlobalLightOutlineMixedIntensity ("GlobalLight Outline Mixed Intensity", Range(0.001, 1)) = 0.5//描边和光照颜色的混合强度 0-1
         
         //阴影设置
         _ToggleShadowCaster ("ShadowCaster Toggle", Float ) = 1 //开关 阴影投射 ●仅用于记录 设置Pass开启
@@ -140,6 +142,10 @@ Shader "BlurToonURP/Lit"
             // GPU Instancing
             #pragma multi_compile_instancing
             
+            // URP 主光阴影接收：补齐后 shadowAttenuation 才会采样真实阴影图（本体接收场景投射阴影）
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+
             // BlurToonURP Keywords
             #pragma shader_feature_local _BASEMAP_SHADE_THRESHOLDMAP_ON //暗部阈值贴图
 			#pragma shader_feature_local _ADDLIGHT_ON // 附加光照
@@ -748,6 +754,10 @@ Shader "BlurToonURP/Lit"
             // GPU Instancing
             #pragma multi_compile_instancing
             
+            // URP 主光阴影接收（描边受阴影影响，在片元采样真实阴影图）
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+
             // BlurToonURP Keywords
             //外描边
             #pragma shader_feature_local _OUTLINE_ON // 外描边开关
@@ -839,7 +849,7 @@ Shader "BlurToonURP/Lit"
                     OUT.positionCS = TransformWorldToHClip(OUT.positionWS.xyz + moveDir * outlineWidth * signVertNormal);
                 #endif
 
-                //TODO 实时光照相关，描边受光照和阴影的影响
+                //描边的光照与阴影影响改到片元着色器中计算（见 frag），此处仅传递中性色
                 OUT.color.rgb = half3(1, 1, 1);
                 
                 #endif
@@ -863,6 +873,23 @@ Shader "BlurToonURP/Lit"
                 half4 colorBaseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, TRANSFORM_TEX(IN.uv, _BaseMap)) * _BaseColor;
                 half4 colorBaseMapBlend = lerp(colorOutlineLightBlend, colorOutlineLightBlend * colorBaseMap, _FloatOutlineBaseMapBlendIntensity);
                 colorFinal = lerp(colorOutlineLightBlend, colorBaseMapBlend, _ToggleOutlineBaseMapBlend);
+
+                //-------- 描边受光照与阴影影响 -------- Start
+                //主光照（带真实投射阴影，依赖本Pass补齐的 _MAIN_LIGHT_SHADOWS 关键词）
+                Light mainLight = GetMainLight(IN.shadowCoord);
+                half3 colorLightMain = mainLight.color * mainLight.distanceAttenuation;
+                //阴影衰减：与基础Pass一致，减去阴影强度偏移，并受“阴影接收”开关控制
+                half shadowAttenuation = lerp(1, saturate(mainLight.shadowAttenuation - _FloatShadowIntensity), _ToggleShadowReceive);
+                //环境光照
+                half3 envLightColor = half3(unity_SHAr.w, unity_SHAg.w, unity_SHAb.w) * _FloatEnvLightIntensity;
+                //实时光照（阴影遮挡直接光）叠加环境光，再乘全局曝光，得到描边的光照色
+                half3 realtimeLightColor = colorLightMain * _FloatRealtimeLightIntensity * 0.1 * shadowAttenuation;
+                half3 colorLightBlend = (envLightColor + realtimeLightColor) * _FloatGlobalExposureIntensity;
+                //按开关与混合强度作用到描边颜色（关掉开关时描边保持原色，向后兼容）
+                colorFinal.rgb = lerp(colorFinal.rgb,
+                    lerp(colorFinal.rgb, colorFinal.rgb * colorLightBlend, _GlobalLightOutlineMixedIntensity),
+                    _ToggleGlobalLightOutline);
+                //-------- 描边受光照与阴影影响 -------- End
 
                 //TODO 纹理贴图颜色混合
 
