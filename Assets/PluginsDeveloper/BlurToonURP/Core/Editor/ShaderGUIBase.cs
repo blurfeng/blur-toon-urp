@@ -22,7 +22,6 @@ namespace BlurToonURP.EditorGUIx
         /// </summary>
         protected Material[] Materials { get; private set; }
 
-        private bool _isInitMaterialProperty;
         private MaterialProperty[] _materialProperties;
         private readonly Dictionary<string, MaterialProperty> _materialPropertyDic = new Dictionary<string, MaterialProperty>();
 
@@ -40,7 +39,7 @@ namespace BlurToonURP.EditorGUIx
             Materials = new Material[targets.Length];
             for (int i = 0; i < targets.Length; i++)
                 Materials[i] = targets[i] as Material;
-            InitMatProperty(properties);
+            RefreshMatProperty(properties);
 
             EditorGUI.BeginChangeCheck();
 
@@ -59,14 +58,14 @@ namespace BlurToonURP.EditorGUIx
         }
 
         /// <summary>
-        /// 记录材质球属性列表并生成Dic用于查找。
+        /// 刷新材质球属性列表并重建查找用的Dic。
+        /// <para>必须“每次 OnGUI 都刷新”：Unity 每帧会重新生成反映当前材质数值的 MaterialProperty 快照，
+        /// 若只在首帧缓存旧快照，则 Undo/Redo 后材质数据虽已回退，但界面读取的仍是旧快照，
+        /// 导致 Inspector 显示不刷新（重开 Inspector 会新建 ShaderGUI 实例才恢复）。</para>
         /// </summary>
         /// <param name="properties"></param>
-        private void InitMatProperty(MaterialProperty[] properties)
+        private void RefreshMatProperty(MaterialProperty[] properties)
         {
-            if (_isInitMaterialProperty) return;
-            _isInitMaterialProperty = true;
-
             _materialProperties = properties;
             if (_materialProperties == null) return;
 
@@ -74,7 +73,7 @@ namespace BlurToonURP.EditorGUIx
             for (int i = 0; i < _materialProperties.Length; i++)
             {
                 var item = _materialProperties[i];
-                _materialPropertyDic.Add(item.name, item);
+                _materialPropertyDic[item.name] = item;
             }
         }
 

@@ -9,6 +9,9 @@ namespace BlurToonURP.EditorGUIx
         {
             base.OnGUIDraw();
 
+            //Debug 功能区（仅编辑器，不影响正式流程），放在顶部
+            MaterialDebugHighlight.OnInspectorGUI(Material);
+
             EditorGUIx.FoldoutPanel("【BaseMap 基础贴图】基础贴图及暗部贴图", PanelMainBasicMap);
             EditorGUIx.FoldoutPanel("【NormalMap 法线贴图】强度、效果开关", PanelMainNormalMap);
             EditorGUIx.FoldoutPanel("【HighLight 镜面高光】高光颜色、大小、遮罩", PanelMainHighLight);
