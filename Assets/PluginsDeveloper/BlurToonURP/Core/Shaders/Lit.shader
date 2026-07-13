@@ -630,6 +630,146 @@ Shader "BlurToonURP/Lit"
             ENDHLSL
         }
 
+        //深度
+        //将模型写入相机深度图(_CameraDepthTexture)。当渲染管线需要深度预渲染时(如开启深度贴图/MSAA/软粒子/深度雾/屏幕空间扭曲等)使用此Pass。
+        Pass
+        {
+            Name "DepthOnly"
+            Tags {"LightMode" = "DepthOnly"}
+
+            //只写入深度，颜色仅写入R通道
+            ZWrite On
+            ColorMask R
+            Cull Back
+
+            HLSLPROGRAM
+
+            // Keywords ------------------------------------- Start
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            // Keywords ------------------------------------- End
+
+            #pragma vertex vert //顶点着色器
+            #pragma fragment frag //片元着色器
+
+            //URP常用的核心方法库
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            //顶点着色器 输入数据结构
+            struct Attributes
+            {
+                float4 positionOS : POSITION; //对象空间顶点位置
+
+                //GPUInstance功能相关宏 用于传递ID数据
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            //片元着色器 输入数据结构
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION; //裁剪空间位置
+
+                //GPUInstance功能相关宏 用于传递ID数据
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            Varyings vert(Attributes IN)
+            {
+                Varyings OUT = (Varyings)0;
+
+                //GPUInstance功能相关宏。
+                UNITY_SETUP_INSTANCE_ID(IN);
+                UNITY_TRANSFER_INSTANCE_ID(IN, OUT);
+
+                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
+                return OUT;
+            }
+
+            half frag(Varyings IN) : SV_Target
+            {
+                //GPUInstance功能相关宏。
+                UNITY_SETUP_INSTANCE_ID(IN);
+
+                //深度Pass只需要写入深度
+                return IN.positionCS.z;
+            }
+
+            ENDHLSL
+        }
+
+        //深度法线
+        //将模型的世界空间法线写入相机法线图(_CameraNormalsTexture)。屏幕空间环境光遮蔽(SSAO)等依赖法线的后处理需要此Pass。
+        Pass
+        {
+            Name "DepthNormals"
+            Tags {"LightMode" = "DepthNormals"}
+
+            ZWrite On
+            Cull Back
+
+            HLSLPROGRAM
+
+            // Keywords ------------------------------------- Start
+            // GPU Instancing
+            #pragma multi_compile_instancing
+            // Keywords ------------------------------------- End
+
+            #pragma vertex vert //顶点着色器
+            #pragma fragment frag //片元着色器
+
+            //URP常用的核心方法库
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            //顶点着色器 输入数据结构
+            struct Attributes
+            {
+                float4 positionOS : POSITION; //对象空间顶点位置
+                float3 normalOS   : NORMAL; //法线
+                float4 tangentOS  : TANGENT; //切线
+
+                //GPUInstance功能相关宏 用于传递ID数据
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            //片元着色器 输入数据结构
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION; //裁剪空间位置
+                float3 normalWS : TEXCOORD1; //世界空间法线
+
+                //GPUInstance功能相关宏 用于传递ID数据
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            Varyings vert(Attributes IN)
+            {
+                Varyings OUT = (Varyings)0;
+
+                //GPUInstance功能相关宏。
+                UNITY_SETUP_INSTANCE_ID(IN);
+                UNITY_TRANSFER_INSTANCE_ID(IN, OUT);
+
+                VertexPositionInputs vertexInput = GetVertexPositionInputs(IN.positionOS.xyz);
+                VertexNormalInputs normalInput = GetVertexNormalInputs(IN.normalOS, IN.tangentOS);
+
+                OUT.positionCS = vertexInput.positionCS;
+                OUT.normalWS = NormalizeNormalPerVertex(normalInput.normalWS);
+                return OUT;
+            }
+
+            half4 frag(Varyings IN) : SV_Target
+            {
+                //GPUInstance功能相关宏。
+                UNITY_SETUP_INSTANCE_ID(IN);
+
+                //输出世界空间法线到相机法线图
+                float3 normalWS = NormalizeNormalPerPixel(IN.normalWS);
+                return half4(normalWS, 0.0);
+            }
+
+            ENDHLSL
+        }
+
         //外描边
         Pass
         {
