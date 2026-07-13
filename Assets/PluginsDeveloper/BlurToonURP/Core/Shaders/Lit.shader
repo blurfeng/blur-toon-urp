@@ -23,8 +23,17 @@ Shader "BlurToonURP/Lit"
         _ToggleShadeThresholdMap ("Shade ThresholdMap Toggle", Float) = 0 //开关 暗部阈值贴图
         _TexShadeThresholdMap ("Shade ThresholdMap ", 2D) = "white" {} //暗部阈值贴图
         _FloatShadeThresholdMapIntensity ("Shade ThresholdMap Intensity", Range(0, 1)) = 0.5 //暗部阈值贴图 强度
-        
-        
+
+
+        //----------- Surface 表面类型 / 透明度裁切 -----------
+        [HideInInspector] _Surface ("Surface Type", Float) = 0 //表面类型 0=Opaque 1=Transparent ●记录 由编辑器按类型设置渲染状态
+        [HideInInspector] _SrcBlend ("Src Blend", Float) = 1 //源混合因子 ●编辑器设置：Opaque=One  Transparent=SrcAlpha
+        [HideInInspector] _DstBlend ("Dst Blend", Float) = 0 //目标混合因子 ●编辑器设置：Opaque=Zero  Transparent=OneMinusSrcAlpha
+        [HideInInspector] _ZWrite ("ZWrite", Float) = 1 //深度写入 ●编辑器设置：Opaque=1  Transparent=0
+        _ToggleAlphaClip ("Alpha Clip Toggle", Float) = 0 //开关 透明度裁切 ●记录 设置关键词 _ALPHATEST_ON
+        _Cutoff ("Alpha Cutoff", Range(0, 1)) = 0.5 //透明度裁切阈值
+
+
         //----------- NormalMap 法线贴图 -----------
         _BumpMap ("Bump Map", 2D) = "bump" {} //法线贴图
         _BumpScale ("Bump Scale", Range(0, 1)) = 1 //强度
@@ -140,8 +149,10 @@ Shader "BlurToonURP/Lit"
         {
             Name "ForwardLit"
             Tags {"LightMode" = "UniversalForward"}
-            Blend SrcAlpha OneMinusSrcAlpha
-            
+            //混合与深度写入由“表面类型”驱动（Opaque=One/Zero/ZWrite On，Transparent=SrcAlpha/OneMinusSrcAlpha/ZWrite Off），编辑器设置对应属性值
+            Blend [_SrcBlend] [_DstBlend]
+            ZWrite [_ZWrite]
+
             HLSLPROGRAM
 
             // Keywords ------------------------------------- Start
@@ -153,6 +164,7 @@ Shader "BlurToonURP/Lit"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
             // BlurToonURP Keywords
+            #pragma shader_feature_local _ALPHATEST_ON //透明度裁切
             #pragma shader_feature_local _BASEMAP_SHADE_THRESHOLDMAP_ON //暗部阈值贴图
 			#pragma shader_feature_local _ADDLIGHT_ON // 附加光照
             #pragma shader_feature_local _BUILTINLIGHT_ON // 内置光照
@@ -264,6 +276,12 @@ Shader "BlurToonURP/Lit"
                 float2 uv = IN.uv;
                 //基础贴图采样。sampler_BaseMap是Unity自动生成的对应采样器不需要额外定义。
                 float4 colorBaseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv) * _BaseColor;
+
+                //透明度裁切：Alpha（基础贴图×基础色）低于阈值的像素被丢弃（cutout），需尽早执行以省去后续计算。
+                #if defined(_ALPHATEST_ON)
+                clip(colorBaseMap.a - _Cutoff);
+                #endif
+
                 float3 viewDirWS = GetWorldSpaceNormalizeViewDir(IN.positionWS); //观察方向
                 float3 normalDirWS = IN.normalWS; //法线方向
                 
@@ -524,6 +542,8 @@ Shader "BlurToonURP/Lit"
             #pragma multi_compile_instancing
             // 点光源/聚光灯阴影投射时，光照方向按逐顶点位置计算
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            // 透明度裁切（镂空处不投射阴影）
+            #pragma shader_feature_local _ALPHATEST_ON
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -534,6 +554,9 @@ Shader "BlurToonURP/Lit"
             //Shadows.hlsl中使用了LerpWhiteTo，其定义在core包的CommonMaterial.hlsl中，需在其之前引入。
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+            //透明度裁切需采样基础贴图 Alpha：SurfaceInput 提供 _BaseMap，LitInput 提供 _BaseColor/_Cutoff 等材质属性
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+            #include "LitInput.hlsl"
 
             //由URP阴影渲染流程设置的全局变量
             #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
@@ -547,6 +570,7 @@ Shader "BlurToonURP/Lit"
             {
                 float4 positionOS : POSITION; //对象空间顶点位置
                 float3 normalOS   : NORMAL; //法线
+                float2 texcoord   : TEXCOORD0; //纹理坐标（透明度裁切用）
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -556,6 +580,7 @@ Shader "BlurToonURP/Lit"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION; //裁剪空间位置
+                float2 uv : TEXCOORD0; //纹理坐标（透明度裁切用）
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -596,11 +621,18 @@ Shader "BlurToonURP/Lit"
                 UNITY_TRANSFER_INSTANCE_ID(IN, OUT);
 
                 OUT.positionCS = GetShadowPositionHClip(IN);
+                OUT.uv = IN.texcoord;
                 return OUT;
             }
 
             half4 frag(Varyings IN) : SV_Target
             {
+                //透明度裁切：镂空处（Alpha<阈值）不写入深度，使投射阴影的轮廓与本体一致
+                #if defined(_ALPHATEST_ON)
+                half alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a;
+                clip(alpha - _Cutoff);
+                #endif
+
                 //阴影Pass只需要深度，不输出颜色
                 return 0;
             }
@@ -625,6 +657,8 @@ Shader "BlurToonURP/Lit"
             // Keywords ------------------------------------- Start
             // GPU Instancing
             #pragma multi_compile_instancing
+            // 透明度裁切（镂空处不写入深度）
+            #pragma shader_feature_local _ALPHATEST_ON
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -632,11 +666,15 @@ Shader "BlurToonURP/Lit"
 
             //URP常用的核心方法库
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            //透明度裁切需采样基础贴图 Alpha：SurfaceInput 提供 _BaseMap，LitInput 提供 _BaseColor/_Cutoff 等材质属性
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+            #include "LitInput.hlsl"
 
             //顶点着色器 输入数据结构
             struct Attributes
             {
                 float4 positionOS : POSITION; //对象空间顶点位置
+                float2 texcoord   : TEXCOORD0; //纹理坐标（透明度裁切用）
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -646,6 +684,7 @@ Shader "BlurToonURP/Lit"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION; //裁剪空间位置
+                float2 uv : TEXCOORD0; //纹理坐标（透明度裁切用）
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -660,6 +699,7 @@ Shader "BlurToonURP/Lit"
                 UNITY_TRANSFER_INSTANCE_ID(IN, OUT);
 
                 OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
+                OUT.uv = IN.texcoord;
                 return OUT;
             }
 
@@ -667,6 +707,12 @@ Shader "BlurToonURP/Lit"
             {
                 //GPUInstance功能相关宏。
                 UNITY_SETUP_INSTANCE_ID(IN);
+
+                //透明度裁切：镂空处（Alpha<阈值）不写入深度
+                #if defined(_ALPHATEST_ON)
+                half alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a;
+                clip(alpha - _Cutoff);
+                #endif
 
                 //深度Pass只需要写入深度
                 return IN.positionCS.z;
@@ -690,6 +736,8 @@ Shader "BlurToonURP/Lit"
             // Keywords ------------------------------------- Start
             // GPU Instancing
             #pragma multi_compile_instancing
+            // 透明度裁切（镂空处不写入深度/法线）
+            #pragma shader_feature_local _ALPHATEST_ON
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -697,6 +745,9 @@ Shader "BlurToonURP/Lit"
 
             //URP常用的核心方法库
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            //透明度裁切需采样基础贴图 Alpha：SurfaceInput 提供 _BaseMap，LitInput 提供 _BaseColor/_Cutoff 等材质属性
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+            #include "LitInput.hlsl"
 
             //顶点着色器 输入数据结构
             struct Attributes
@@ -704,6 +755,7 @@ Shader "BlurToonURP/Lit"
                 float4 positionOS : POSITION; //对象空间顶点位置
                 float3 normalOS   : NORMAL; //法线
                 float4 tangentOS  : TANGENT; //切线
+                float2 texcoord   : TEXCOORD0; //纹理坐标（透明度裁切用）
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -714,6 +766,7 @@ Shader "BlurToonURP/Lit"
             {
                 float4 positionCS : SV_POSITION; //裁剪空间位置
                 float3 normalWS : TEXCOORD1; //世界空间法线
+                float2 uv : TEXCOORD2; //纹理坐标（透明度裁切用）
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -732,6 +785,7 @@ Shader "BlurToonURP/Lit"
 
                 OUT.positionCS = vertexInput.positionCS;
                 OUT.normalWS = NormalizeNormalPerVertex(normalInput.normalWS);
+                OUT.uv = IN.texcoord;
                 return OUT;
             }
 
@@ -739,6 +793,12 @@ Shader "BlurToonURP/Lit"
             {
                 //GPUInstance功能相关宏。
                 UNITY_SETUP_INSTANCE_ID(IN);
+
+                //透明度裁切：镂空处（Alpha<阈值）不写入深度/法线
+                #if defined(_ALPHATEST_ON)
+                half alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a;
+                clip(alpha - _Cutoff);
+                #endif
 
                 //输出世界空间法线到相机法线图
                 float3 normalWS = NormalizeNormalPerPixel(IN.normalWS);
@@ -774,6 +834,7 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _OUTLINE_ON // 外描边开关
             #pragma shader_feature_local _OUTLINE_WIDTH_SAME _OUTLINE_WIDTH_SCALING // 外描边类型
             #pragma shader_feature_local _OUTLINE_MAP_ON // 描边纹理贴图
+            #pragma shader_feature_local _ALPHATEST_ON // 透明度裁切
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -880,8 +941,14 @@ Shader "BlurToonURP/Lit"
                 UNITY_SETUP_INSTANCE_ID(IN);
 
                 half4 colorFinal = half4(1, 1, 1, 1);
-                
+
                 #if defined(_OUTLINE_ON)
+
+                //透明度裁切：与本体一致，按 基础贴图Alpha×基础色Alpha 裁掉镂空处的描边，避免描边出现在被裁像素上
+                #if defined(_ALPHATEST_ON)
+                half alphaOutline = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, TRANSFORM_TEX(IN.uv, _BaseMap)).a * _BaseColor.a;
+                clip(alphaOutline - _Cutoff);
+                #endif
 
                 //外描边颜色和光照色混合
                 half4 colorOutlineLightBlend = _ColorOutlineColor * IN.color;

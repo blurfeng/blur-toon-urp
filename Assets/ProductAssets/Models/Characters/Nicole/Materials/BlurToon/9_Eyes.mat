@@ -12,14 +12,16 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
+  - _ALPHATEST_ON
   - _OUTLINE_WIDTH_SAME
   m_InvalidKeywords:
   - _
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
+  m_CustomRenderQueue: 3000
+  stringTagMap:
+    RenderType: Transparent
   disabledShaderPasses:
   - Outline
   m_LockedProperties: 
@@ -122,7 +124,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _DstBlend: 0
+    - _DstBlend: 10
     - _EdgeScale: 0.001
     - _EdgeSize: 0.0005
     - _EnvironmentReflections: 1
@@ -188,12 +190,13 @@ Material:
     - _Smoothness: 0.1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SrcBlend: 1
-    - _Surface: 0
+    - _SrcBlend: 5
+    - _Surface: 1
     - _TessEdgeLength: 5
     - _TessExtrusionAmount: 0
     - _TessPhongStrength: 0.5
     - _ToggleAddLight: 1
+    - _ToggleAlphaClip: 1
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
     - _ToggleGlobalLightBaseMap: 1
@@ -219,7 +222,7 @@ Material:
     - _ToggleShadowReceive: 1
     - _UVSec: 0
     - _WorkflowMode: 1
-    - _ZWrite: 1
+    - _ZWrite: 0
     m_Colors:
     - _Ambient: {r: 0.5, g: 0.5, b: 0.5, a: 0}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}

@@ -13,6 +13,7 @@ namespace BlurToonURP.EditorGUIx
             MaterialDebugHighlight.OnInspectorGUI(Material);
 
             EditorGUIx.FoldoutPanel("【BaseMap 基础贴图】基础贴图及暗部贴图", PanelMainBasicMap);
+            EditorGUIx.FoldoutPanel("【Surface 表面类型】不透明/透明、透明度裁切", PanelMainSurface);
             EditorGUIx.FoldoutPanel("【NormalMap 法线贴图】强度、效果开关", PanelMainNormalMap);
             EditorGUIx.FoldoutPanel("【HighLight 镜面高光】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【Outline 外描边】粗细、颜色", PanelMainOutline);
@@ -89,7 +90,104 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatShadeThresholdMapIntensity"), "强度");
         }
         #endregion
-        
+
+        #region Surface 表面类型 / 透明度裁切
+        private static readonly GUIContent ContentSurfaceType = new GUIContent("表面类型", "Opaque 不透明 / Transparent 透明（标准 Alpha 混合）。切换会自动设置混合模式、深度写入与渲染队列。");
+        private static readonly GUIContent ContentAlphaClip = new GUIContent("透明度裁切", "按 基础贴图Alpha×基础色Alpha 与阈值裁切像素（Alpha Clip / Cutout）。在本体、描边、阴影、深度所有 Pass 生效。");
+
+        /// <summary>
+        /// 关键词 透明度裁切 开启
+        /// </summary>
+        private const string MatKeywordAlphaTest = "_ALPHATEST_ON";
+
+        /// <summary>
+        /// 表面类型
+        /// </summary>
+        private enum ESurfaceType
+        {
+            /// <summary>
+            /// 不透明
+            /// </summary>
+            Opaque,
+
+            /// <summary>
+            /// 透明（标准 Alpha 混合）
+            /// </summary>
+            Transparent
+        }
+
+        /// <summary>
+        /// 主面板 表面类型 / 透明度裁切
+        /// </summary>
+        private void PanelMainSurface()
+        {
+            //条目 表面类型
+            EditorGUIx.DropdownEnum(ContentSurfaceType, GetMaterialProperty("_Surface"), typeof(ESurfaceType), MaterialEditor);
+
+            //条目 透明度裁切
+            var matPropToggleAlphaClip = GetMaterialProperty("_ToggleAlphaClip");
+            EditorGUIx.SwitchButton(ContentAlphaClip, matPropToggleAlphaClip);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordAlphaTest, "_ToggleAlphaClip");
+            if (matPropToggleAlphaClip.floatValue.Equals(1))
+            {
+                EditorGUI.indentLevel++;
+                //条目 裁切阈值
+                MaterialEditor.RangeProperty(GetMaterialProperty("_Cutoff"), "| 裁切阈值");
+                EditorGUI.indentLevel--;
+            }
+
+            //按“表面类型 + 是否裁切”设置各材质的混合因子/深度写入/渲染队列/渲染类型标签
+            ApplySurfaceType();
+        }
+
+        /// <summary>
+        /// 按各材质自身的“表面类型/透明度裁切”设置渲染状态（混合因子、深度写入、渲染队列、RenderType 标签）。
+        /// <para>多选编辑时作用到全部选中材质；这些是由属性推导出的“派生渲染状态”，与关键词同理需每次 OnGUI 同步；
+        /// 仅在与当前值不同时才写入，避免无意义地反复标记材质为已修改。</para>
+        /// </summary>
+        private void ApplySurfaceType()
+        {
+            if (Materials == null) return;
+            foreach (var m in Materials)
+            {
+                if (m == null) continue;
+
+                bool transparent = m.HasProperty("_Surface") && m.GetFloat("_Surface") >= 0.5f;
+                bool alphaClip = m.HasProperty("_ToggleAlphaClip") && m.GetFloat("_ToggleAlphaClip") >= 0.5f;
+
+                int src, dst, zwrite, queue;
+                string renderType;
+                if (transparent)
+                {
+                    //透明：标准 Alpha 混合，关闭深度写入，进入 Transparent 队列
+                    src = (int)UnityEngine.Rendering.BlendMode.SrcAlpha;
+                    dst = (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha;
+                    zwrite = 0;
+                    queue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                    renderType = "Transparent";
+                }
+                else
+                {
+                    //不透明：不混合、写入深度；裁切时进入 AlphaTest 队列，否则 Geometry
+                    src = (int)UnityEngine.Rendering.BlendMode.One;
+                    dst = (int)UnityEngine.Rendering.BlendMode.Zero;
+                    zwrite = 1;
+                    queue = alphaClip
+                        ? (int)UnityEngine.Rendering.RenderQueue.AlphaTest
+                        : (int)UnityEngine.Rendering.RenderQueue.Geometry;
+                    renderType = alphaClip ? "TransparentCutout" : "Opaque";
+                }
+
+                if (!Mathf.Approximately(m.GetFloat("_SrcBlend"), src)) m.SetFloat("_SrcBlend", src);
+                if (!Mathf.Approximately(m.GetFloat("_DstBlend"), dst)) m.SetFloat("_DstBlend", dst);
+                if (!Mathf.Approximately(m.GetFloat("_ZWrite"), zwrite)) m.SetFloat("_ZWrite", zwrite);
+                if (m.renderQueue != queue) m.renderQueue = queue;
+                if (m.GetTag("RenderType", false, "") != renderType) m.SetOverrideTag("RenderType", renderType);
+            }
+        }
+        #endregion
+
         #region 主面板-法线贴图
         private static GUIContent m_ContentBaseNormalMap = new GUIContent("法线贴图", "法线偏移 : 贴图采样矢量(sRGB)进行法线偏移");
         

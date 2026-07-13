@@ -34,6 +34,16 @@ float4 _TexShadeThresholdMap_ST; //暗部阈值 贴图
 half _FloatShadeThresholdMapIntensity; //暗部阈值贴图 强度
 
 
+//-------- Surface 表面类型 / 透明度裁切 --------
+//_Surface/_SrcBlend/_DstBlend/_ZWrite 仅供固定管线渲染状态与编辑器使用，HLSL 只读取 _Cutoff；
+//此处一并纳入 CBUFFER 以与 URP 约定一致、保证各 Pass 布局完全相同。
+half _Surface; //表面类型 0=Opaque 1=Transparent
+half _SrcBlend; //源混合因子
+half _DstBlend; //目标混合因子
+half _ZWrite; //深度写入
+half _Cutoff; //透明度裁切阈值
+
+
 //-------- NormalMap 法线贴图 --------
 float4 _BumpMap_ST;
 half _BumpScale; //法线贴图强度

@@ -12,6 +12,7 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
+  - _ALPHATEST_ON
   - _OUTLINE_ON
   - _OUTLINE_WIDTH_SAME
   - _RIMLIGHT_ON
@@ -22,8 +23,9 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
+  m_CustomRenderQueue: 2450
+  stringTagMap:
+    RenderType: TransparentCutout
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
@@ -197,6 +199,7 @@ Material:
     - _TessExtrusionAmount: 0
     - _TessPhongStrength: 0.5
     - _ToggleAddLight: 1
+    - _ToggleAlphaClip: 1
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
     - _ToggleGlobalLightBaseMap: 1
