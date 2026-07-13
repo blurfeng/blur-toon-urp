@@ -192,101 +192,8 @@ Shader "BlurToonURP/Lit"
             TEXTURE2D(_TexRimLightMaskMap); SAMPLER(sampler_TexRimLightMaskMap);
             #endif
             
-            CBUFFER_START(UnityPerMaterial)
-            //-------- BaseMap 基础纹理 --------
-            //已在"Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"中定义的内容。
-            //TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap); //基础贴图
-            //TEXTURE2D(_BumpMap); SAMPLER(sampler_BumpMap); //法线贴图
-            float4 _BaseMap_ST; //基础贴图
-            half4 _BaseColor;
-            //基础贴图混合颜色
-            half4 _BaseMapBlendColor; //基础贴图 混合颜色
-            half _BaseMapBlendColorIntensity; //基础贴图 混合颜色强度
-            //暗部 Shade
-            half4 _Shade1Color; //暗部1颜色
-            half4 _Shade2Color; //暗部2颜色
-            //色阶分布与模糊
-            half _FloatBrightShade1Step; //基础→暗部1 位置
-            half _FloatBrightShade1Blur; //基础→暗部1 模糊
-            half _FloatShade1Shade2Step; //暗部1→暗部2 位置
-            half _FloatShade1Shade2Blur; //暗部1→暗部2 模糊
-            //暗部阈值贴图
-            #if defined(_BASEMAP_SHADE_THRESHOLDMAP_ON)
-            float4 _TexShadeThresholdMap_ST; //暗部阈值 贴图
-            half _FloatShadeThresholdMapIntensity; //暗部阈值贴图 强度
-            #endif
-
-            
-            //-------- NormalMap 法线贴图 --------
-            float4 _BumpMap_ST;
-            half _BumpScale; //法线贴图强度
-            //开关
-            half _ToggleNormalMapOnBaseMap; //开关 基础贴图
-            half _ToggleNormalMapOnHighLight; //开关 高光
-            half _ToggleNormalMapOnRimLight; //开关 边缘光
-            
-            
-            //-------- RimLight 边缘光 --------
-            half _ToggleRimLight; //开关 边缘光
-            half4 _ColorRimLightColor; //颜色
-            half _FloatRimLightIntensity; //强度
-            half _FloatRimLightInsideDistance; //内部距离
-            half _ToggleRimLightHard; //开关 硬边缘
-            //暗部遮罩
-            half _FloatRimLightShadeMaskIntensity; //暗部遮罩强度
-            half _FloatRimLightShadeMaskOffset; //暗部遮罩偏移
-            //暗部颜色
-            half4 _ColorRimLightShadeColor; //暗部颜色
-            half _FloatRimLightShadeColorIntensity; //暗部颜色 强度
-            half _ToggleRimLightShadeColorHard; //暗部颜色 硬边缘
-            //遮罩贴图
-            float4 _TexRimLightMaskMap_ST;
-            half _FloatRimLightMaskMapIntensity; //遮罩贴图强度
-
-
-            //-------- Light 光照设置 --------
-            half _FloatRealtimeLightIntensity; //实时光照强度
-            half _FloatEnvLightIntensity; //环境光照强度
-
-            //曝光设置
-            half _FloatGlobalExposureIntensity; //全局曝光强度
-            half _FloatBaseMapExposureIntensity; //曝光强度
-            half _FloatBaseMapShade1ExposureIntensity; //曝光强度
-            half _FloatBaseMapShade2ExposureIntensity; //曝光强度
-
-            //附加光照设置
-            half _FloatAddLightIntensity; //附加光照强度
-
-            //光照开关
-            half _ToggleGlobalLightBaseMap; //基础贴图
-            half _GlobalLightBaseMapMixedIntensity; //基础贴图和光照颜色的混合强度 0-1
-            half _ToggleGlobalLightBaseShade1; //暗部1
-            half _GlobalLightBaseShade1MixedIntensity; //暗部1和光照颜色的混合强度 0-1
-            half _ToggleGlobalLightBaseShade2; //暗部2
-            half _GlobalLightBaseShade2MixedIntensity; //暗部2和光照颜色的混合强度 0-1
-            half _ToggleGlobalLightRimLight; //边缘光
-            half _GlobalLightRimLightMixedIntensity; //边缘光和光照颜色的混合强度 0-1
-            half _ToggleGlobalLightRimLightShade; //边缘光暗部
-            half _GlobalLightRimLightShadeMixedIntensity; //边缘光暗部和光照颜色的混合强度 0-1
-            
-            //阴影设置
-            half _ToggleShadowReceive; //开关 阴影接收
-            half _FloatShadowIntensity; //阴影接收强度
-
-            //内置光照
-            float _FloatBuiltInLightAxisX; //光照方向X轴
-            float _FloatBuiltInLightAxisY; //光照方向Y轴
-            float _FloatBuiltInLightAxisZ; //光照方向Z轴
-            half _FloatBuiltInLightDirBlend; //光照方向混合0-1，0=场景光方向 1=内置光方向
-            half _ToggleBuiltInLightColor; //开关 内置光照颜色
-            half4 _ColorBuiltInLightColor; //内置光照颜色
-            half _FloatBuiltInLightColorBlend; //内置光照颜色 混合强度
-            
-            //光照水平方向锁定
-            half _ToggleLightHorLockBaseMap; //光照水平锁定 基础贴图
-            half _ToggleLightHorLockRimLight; //光照水平锁定 边缘光
-            
-            CBUFFER_END
+            //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
+            #include "LitInput.hlsl"
             
             //顶点着色器
             Varyings vert(Attributes IN)
@@ -802,21 +709,8 @@ Shader "BlurToonURP/Lit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl"
             
-            CBUFFER_START(UnityPerMaterial)
-            //基础纹理 BaseMap
-            //已在"Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"中定义的内容。
-            //TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap); //基础贴图
-            //TEXTURE2D(_BumpMap); SAMPLER(sampler_BumpMap); //法线贴图
-            float4 _BaseMap_ST; //基础贴图
-            half4 _BaseColor;
-
-            //外描边
-            half _FloatOutlineType;
-            half4 _ColorOutlineColor;
-            half _FloatOutlineWidth;
-            half _ToggleOutlineBaseMapBlend;
-            half _FloatOutlineBaseMapBlendIntensity;
-            CBUFFER_END
+            //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
+            #include "LitInput.hlsl"
 
             //顶点着色器 输入数据结构
             struct VertexInput
