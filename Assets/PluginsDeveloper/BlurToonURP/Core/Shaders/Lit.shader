@@ -279,18 +279,23 @@ Shader "BlurToonURP/Lit"
                 //光照颜色
                 half3 realtimeLightColor = colorLightMain;
                 
-                //附加光照
+                //附加光照（点光源/聚光灯）
+                //方向着色：附加光照“不参与”主光的半兰伯特色阶分段(暗部1/2)，只按“各自光照方向”对表面做半兰伯特，
+                //          再累加 光色×距离衰减，形成有方向感的点光/聚光提亮，避免整体均匀发白。
                 #if defined(_ADDLIGHT_ON)
-                half3 colorLightAdd;
+                half3 colorLightAdd = half3(0, 0, 0); //必须初始化为0，否则会累加到未定义值上
                 uint lightsCount = GetAdditionalLightsCount();
                 LIGHT_LOOP_BEGIN(lightsCount)
                     Light light = GetAdditionalLight(lightIndex, IN.positionWS);
-                    half3 lightColor = light.color * light.distanceAttenuation;
+                    //各附加光照自身方向的半兰伯特，实现方向着色（面向光的一侧更亮，背光侧更暗）
+                    half addLightHalfLambert = dot(normalDirWS, light.direction) * 0.5 + 0.5;
+                    //光色 × 距离衰减 × 方向着色
+                    half3 lightColor = light.color * light.distanceAttenuation * addLightHalfLambert;
                     colorLightAdd += lightColor;
                 LIGHT_LOOP_END
                 //自定义 附加光照强度
                 colorLightAdd *= _FloatAddLightIntensity;
-                //混合实时光照颜色
+                //混合实时光照颜色（仅作为叠加提亮，不参与主光色阶分段）
                 realtimeLightColor += colorLightAdd;
                 #endif
 
