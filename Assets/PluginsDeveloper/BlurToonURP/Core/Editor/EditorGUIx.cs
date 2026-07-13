@@ -105,29 +105,32 @@ namespace BlurToonURP.EditorGUIx
         }
 
         /// <summary>
-        /// 按钮 开关切换 Pass是否开启
+        /// 按钮 开关切换 Pass是否开启（支持多选编辑，点击时作用到全部材质）
         /// </summary>
         /// <param name="label"></param>
-        /// <param name="material"></param>
+        /// <param name="materials">全部被编辑的材质球</param>
         /// <param name="shaderPassName"></param>
-        public static void SwitchButtonPass(GUIContent label, Material material, string shaderPassName)
+        public static void SwitchButtonPass(GUIContent label, Material[] materials, string shaderPassName)
         {
+            if (materials == null || materials.Length == 0 || materials[0] == null) return;
+
             EditorGUILayout.BeginHorizontal();
 
             EditorGUILayout.PrefixLabel(label);
 
-            if (material.GetShaderPassEnabled(shaderPassName))
+            //以激活材质（第一个）的状态显示按钮
+            if (materials[0].GetShaderPassEnabled(shaderPassName))
             {
                 GUI.color = ColorOn;
                 if (GUILayout.Button("On", LayoutBtnSmall))
-                    material.SetShaderPassEnabled(shaderPassName, false);
+                    foreach (var m in materials) { if (m != null) m.SetShaderPassEnabled(shaderPassName, false); }
                 GUI.color = ColorDefault;
             }
             else
             {
                 GUI.color = ColorOff;
                 if (GUILayout.Button("Off", LayoutBtnSmall))
-                    material.SetShaderPassEnabled(shaderPassName, true);
+                    foreach (var m in materials) { if (m != null) m.SetShaderPassEnabled(shaderPassName, true); }
                 GUI.color = ColorDefault;
             }
 

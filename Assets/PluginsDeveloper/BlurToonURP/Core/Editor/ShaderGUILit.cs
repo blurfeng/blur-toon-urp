@@ -72,13 +72,10 @@ namespace BlurToonURP.EditorGUIx
         {
             var matPropToggleShadeThresholdMap = GetMaterialProperty("_ToggleShadeThresholdMap");
             EditorGUIx.SwitchButton("暗部阈值贴图-主开关", matPropToggleShadeThresholdMap);
-            if (matPropToggleShadeThresholdMap.floatValue.Equals(1))
-                Material.EnableKeyword(MatKeywordShadeThresholdMap);
-            else
-            {
-                Material.DisableKeyword(MatKeywordShadeThresholdMap);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordShadeThresholdMap, "_ToggleShadeThresholdMap");
+            if (!matPropToggleShadeThresholdMap.floatValue.Equals(1))
                 return;
-            }
 
             //条目 暗部阈值贴图
             var matPropTexShadeThresholdMap = GetMaterialProperty("_TexShadeThresholdMap");
@@ -175,17 +172,11 @@ namespace BlurToonURP.EditorGUIx
         private void PanelMainOutline()
         {
             //条目 主开关
-            EditorGUIx.SwitchButtonPass(ContentOutline, Material, MatPassNameOutline);
-            //设置 关键词
-            if (Material.GetShaderPassEnabled(MatPassNameOutline))
-            {
-                Material.EnableKeyword(MatKeywordOutlineOn);
-            }
-            else
-            {
-                Material.DisableKeyword(MatKeywordOutlineOn);
+            EditorGUIx.SwitchButtonPass(ContentOutline, Materials, MatPassNameOutline);
+            //设置 关键词（多选编辑：按各材质自身Pass状态同步）
+            ApplyKeywordByPass(MatKeywordOutlineOn, MatPassNameOutline);
+            if (!Material.GetShaderPassEnabled(MatPassNameOutline))
                 return;
-            }
 
             //条目 描边类型
             EditorGUIx.DropdownEnum(ContentOutlineType, GetMaterialProperty("_FloatOutlineType"), typeof(EOutlineType), MaterialEditor);
@@ -193,18 +184,9 @@ namespace BlurToonURP.EditorGUIx
             //条目 描边宽度类型
             var matPropFloatOutlineWidthType = GetMaterialProperty("_FloatOutlineWidthType");
             EditorGUIx.DropdownEnum(ContentOutlineWidthType, matPropFloatOutlineWidthType, typeof(EOutlineWidthType), MaterialEditor);
-            //应用材质球属性-描边类型
-            switch ((EOutlineWidthType)matPropFloatOutlineWidthType.floatValue)
-            {
-                case EOutlineWidthType.Same: //相同宽度
-                    Material.EnableKeyword(MatKeywordOutlineSameWidth);
-                    Material.DisableKeyword(MatKeywordOutlineScaling);
-                    break;
-                case EOutlineWidthType.Scaling: //距离缩放
-                    Material.DisableKeyword(MatKeywordOutlineSameWidth);
-                    Material.EnableKeyword(MatKeywordOutlineScaling);
-                    break;
-            }
+            //应用材质球属性-描边宽度类型（多选编辑：按各材质自身宽度类型同步，两者互斥）
+            ApplyKeyword(MatKeywordOutlineSameWidth, "_FloatOutlineWidthType", (float)EOutlineWidthType.Same);
+            ApplyKeyword(MatKeywordOutlineScaling, "_FloatOutlineWidthType", (float)EOutlineWidthType.Scaling);
 
             //条目 外描边颜色
             MaterialEditor.ColorProperty(GetMaterialProperty("_ColorOutlineColor"), "颜色");
@@ -255,16 +237,11 @@ namespace BlurToonURP.EditorGUIx
             //条目 边缘光开关
             var matPropToggleRimLight = GetMaterialProperty("_ToggleRimLight");
             EditorGUIx.SwitchButton("边缘光-主开关", matPropToggleRimLight);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordRimLightOn, "_ToggleRimLight");
             //未开启 不显示详细设置
-            if (matPropToggleRimLight.floatValue.Equals(1))
-            {
-                Material.EnableKeyword(MatKeywordRimLightOn);
-            }
-            else
-            {
-                Material.DisableKeyword(MatKeywordRimLightOn);
+            if (!matPropToggleRimLight.floatValue.Equals(1))
                 return;
-            }
 
             EditorGUIx.LabelItem("边缘光 设置");
             //条目 颜色
@@ -283,13 +260,17 @@ namespace BlurToonURP.EditorGUIx
                 //条目 暗部遮罩
                 var matPropToggleRimLightShadeMask = GetMaterialProperty("_ToggleRimLightShadeMask");
                 EditorGUIx.SwitchButton(ContentRimLightShadeMask, matPropToggleRimLightShadeMask);
+                //多选编辑：按各材质自身开关值同步关键词（暗部颜色关键词在Shader中嵌套于暗部遮罩内，未开遮罩时无副作用）
+                ApplyKeyword(MatKeywordRimLightShadeMaskOn, "_ToggleRimLightShadeMask");
+                ApplyKeyword(MatKeywordRimLightShadeMaskColorOn, "_ToggleRimLightShadeColor");
+
                 //暗部遮罩开关折叠
                 if (matPropToggleRimLightShadeMask.floatValue.Equals(1))
                 {
                     //条目 遮罩强度
                     MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightShadeMaskIntensity"), "遮罩强度");
                     MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightShadeMaskOffset"), "遮罩偏移");
-                    
+
                     //条目 暗部颜色开关
                     var matPropToggleRimLightShadeColor = GetMaterialProperty("_ToggleRimLightShadeColor");
                     EditorGUIx.SwitchButton("暗部颜色", matPropToggleRimLightShadeColor);
@@ -306,17 +287,8 @@ namespace BlurToonURP.EditorGUIx
                         EditorGUIx.SwitchButton("| 硬边缘", GetMaterialProperty("_ToggleRimLightShadeColorHard"));
 
                         EditorGUI.indentLevel--;
-
-                        Material.EnableKeyword(MatKeywordRimLightShadeMaskColorOn); //设置 关键词
                     }
-                    else
-                        Material.DisableKeyword(MatKeywordRimLightShadeMaskColorOn); //设置 关键词
-
-                    Material.EnableKeyword(MatKeywordRimLightShadeMaskOn); //设置 关键词
                 }
-                else
-                    Material.DisableKeyword(MatKeywordRimLightShadeMaskOn); //设置 关键词
-
 
                 EditorGUILayout.Space();
             }
@@ -330,11 +302,8 @@ namespace BlurToonURP.EditorGUIx
                 var matPropTexRimLightMaskMap = GetMaterialProperty("_TexRimLightMaskMap");
                 MaterialEditor.TexturePropertySingleLine(ContentRimLightMaskTex, matPropTexRimLightMaskMap);
                 MaterialEditor.TextureScaleOffsetProperty(matPropTexRimLightMaskMap);
-                //设置 关键词
-                if (matPropTexRimLightMaskMap.textureValue != null)
-                    Material.EnableKeyword(MatKeywordRimLightMaskMapOn);
-                else
-                    Material.DisableKeyword(MatKeywordRimLightMaskMapOn);
+                //设置 关键词（多选编辑：按各材质是否指定遮罩贴图同步）
+                ApplyKeywordByTexture(MatKeywordRimLightMaskMapOn, "_TexRimLightMaskMap");
 
                 //条目 边缘光遮罩强度
                 MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightMaskMapIntensity"), "遮罩强度");
@@ -395,13 +364,10 @@ namespace BlurToonURP.EditorGUIx
             //条目 自发光主开关
             var matPropToggleAddLight = GetMaterialProperty("_ToggleAddLight");
             EditorGUIx.SwitchButton("附加光照-主开关", matPropToggleAddLight);
-            if (matPropToggleAddLight.floatValue.Equals(1))
-                Material.EnableKeyword(MatKeywordAddLightOn);
-            else
-            {
-                Material.DisableKeyword(MatKeywordAddLightOn);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordAddLightOn, "_ToggleAddLight");
+            if (!matPropToggleAddLight.floatValue.Equals(1))
                 return;
-            }
 
             //条目 强度
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatAddLightIntensity"), "强度");
@@ -451,8 +417,8 @@ namespace BlurToonURP.EditorGUIx
         /// </summary>
         private void PanelSubShadowReceive()
         {
-            //条目 阴影投射开关
-            EditorGUIx.SwitchButtonPass(ContentGlobalLightShadowCaster, Material, MatPassNameShadowCaster);
+            //条目 阴影投射开关（多选编辑：点击时作用到全部选中材质）
+            EditorGUIx.SwitchButtonPass(ContentGlobalLightShadowCaster, Materials, MatPassNameShadowCaster);
 
             //条目 阴影接收开关
             this.SwitchButtonAndSubFloat(
@@ -479,14 +445,11 @@ namespace BlurToonURP.EditorGUIx
             //条目 内置光照开关
             var matPropToggleBuiltInLight = GetMaterialProperty("_ToggleBuiltInLight");
             EditorGUIx.SwitchButton(ContentGlobalLightBuiltInLight, matPropToggleBuiltInLight);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordBuiltInLight, "_ToggleBuiltInLight");
             //内置光照开关折叠
-            if (matPropToggleBuiltInLight.floatValue.Equals(1))
-                Material.EnableKeyword(MatKeywordBuiltInLight);
-            else
-            {
-                Material.DisableKeyword(MatKeywordBuiltInLight);
+            if (!matPropToggleBuiltInLight.floatValue.Equals(1))
                 return;
-            }
 
             //条目 X轴位置 Y轴位置 Z轴位置
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatBuiltInLightAxisX"), "X轴位置");
