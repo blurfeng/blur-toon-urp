@@ -31,7 +31,7 @@ Shader "BlurToonURP/Lit"
         //开关
         _ToggleNormalMapOnBaseMap ("NormalMap On BaseMap", Float) = 0 //开关 基础贴图
         _ToggleNormalMapOnHighLight ("NormalMap On HighLight", Float) = 0 //开关 高光
-        _ToggleNormalMapOnRimLight ("NormalMap On RimLight", Float) = 0 //开关 边缘光
+        //（边缘光的法线来源已改为边缘光面板中的专属配置 _FloatRimLightNormalSource，此处不再共用开关）
 
 
         //----------- HighLight 镜面高光 -----------
@@ -51,7 +51,10 @@ Shader "BlurToonURP/Lit"
         _FloatOutlineWidth ("Outline Width", Float ) = 1.5 //宽度
         _ToggleOutlineBaseMapBlend ("Outline BaseMapBlend", Float ) = 1 //开关 基础贴图混合
         _FloatOutlineBaseMapBlendIntensity ("Outline BaseMapBlend Intensity", Range(0, 1) ) = 1 //基础贴图混合 强度
-        
+        //描边纹理贴图
+        _TexOutlineMap ("Outline Map", 2D) = "white" {} //描边纹理贴图（描边专用纹理，调制描边颜色）
+        _FloatOutlineMapIntensity ("Outline Map Intensity", Range(0, 1)) = 1 //描边纹理混合 强度
+
         
         //----------- Rim Light 边缘光 -----------
         _ToggleRimLight ("RimLight Toggle", Float) = 0 //边缘光开关 ●仅用于记录 设置关键词开启
@@ -59,6 +62,9 @@ Shader "BlurToonURP/Lit"
         _FloatRimLightIntensity ("RimLight Intensity", Range(0, 1)) = 0.8 //强度
         _FloatRimLightInsideDistance ("RimLight Inside Distance", Range(0, 1)) = 0.18 //内部距离
         _ToggleRimLightHard ("RimLight Hard", Float) = 0 //开关 硬边缘
+        //法线来源（边缘光专属）
+        _FloatRimLightNormalSource ("RimLight Normal Source", Float) = 0 //法线来源 0=几何法线 1=法线贴图 2=混合
+        _FloatRimLightNormalMapBlend ("RimLight NormalMap Blend", Range(0, 1)) = 1 //混合模式下 几何↔法线贴图 的混合强度
         //暗部遮罩
         _ToggleRimLightShadeMask ("RimLight ShadeMask Toggle", Float ) = 0 //开关 暗部遮罩 ●仅用于记录 设置关键词开启
         _FloatRimLightShadeMaskIntensity ("RimLight ShadeMask Intensity", Range(0, 1)) = 1 //暗部遮罩强度
@@ -411,8 +417,13 @@ Shader "BlurToonURP/Lit"
                     lerp(_ColorRimLightColor.rgb, _ColorRimLightColor.rgb * colorLightBlend, _GlobalLightRimLightMixedIntensity),
                     _ToggleGlobalLightRimLight);
                 colorRimLight *= _ColorRimLightColor.a; //透明度
-                //法线方向 TODO使用法线方向来源配置
-                float3 normalDirOnRimLight = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnRimLight);
+                //法线方向来源（边缘光专属配置）：0=几何法线 1=法线贴图 2=混合。
+                //用 lerp+step 构建无分支选择器（与“描边类型”同款写法），避免关键词变体膨胀。
+                float3 normalDirRimBlend = normalize(lerp(normalDirWS, normalDirTex, _FloatRimLightNormalMapBlend));
+                float3 normalDirOnRimLight =
+                    lerp(normalDirWS,
+                        lerp(normalDirTex, normalDirRimBlend, step(1.5, _FloatRimLightNormalSource)),
+                        step(0.5, _FloatRimLightNormalSource));
 
                 //计算边缘光系数，并按系数调整边缘光颜色
                 //法线和视线夹角，越靠近边缘值越大。范围为[0,1]。
@@ -762,6 +773,7 @@ Shader "BlurToonURP/Lit"
             //外描边
             #pragma shader_feature_local _OUTLINE_ON // 外描边开关
             #pragma shader_feature_local _OUTLINE_WIDTH_SAME _OUTLINE_WIDTH_SCALING // 外描边类型
+            #pragma shader_feature_local _OUTLINE_MAP_ON // 描边纹理贴图
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -775,6 +787,11 @@ Shader "BlurToonURP/Lit"
             
             //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
             #include "LitInput.hlsl"
+
+            //描边纹理贴图（描边专用纹理，用于给描边着色/图案，仅在指定贴图后启用关键词）
+            #if defined(_OUTLINE_MAP_ON)
+            TEXTURE2D(_TexOutlineMap); SAMPLER(sampler_TexOutlineMap);
+            #endif
 
             //顶点着色器 输入数据结构
             struct VertexInput
@@ -891,7 +908,13 @@ Shader "BlurToonURP/Lit"
                     _ToggleGlobalLightOutline);
                 //-------- 描边受光照与阴影影响 -------- End
 
-                //TODO 纹理贴图颜色混合
+                //-------- 描边纹理贴图颜色混合 --------
+                //用一张描边专用纹理调制描边颜色（可做彩色描边、图案、噪声等），UV 与基础贴图相同；
+                //仅在材质指定了描边纹理时生效（关键词 _OUTLINE_MAP_ON），未指定时保持原描边颜色，向后兼容。
+                #if defined(_OUTLINE_MAP_ON)
+                half4 colorOutlineMap = SAMPLE_TEXTURE2D(_TexOutlineMap, sampler_TexOutlineMap, TRANSFORM_TEX(IN.uv, _TexOutlineMap));
+                colorFinal.rgb = lerp(colorFinal.rgb, colorFinal.rgb * colorOutlineMap.rgb, _FloatOutlineMapIntensity);
+                #endif
 
                 //TODO 表面类型
                 colorFinal = half4(colorFinal.rgb, 1);

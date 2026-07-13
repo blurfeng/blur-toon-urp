@@ -92,6 +92,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TexOutlineMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _TexRimLightMaskMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -158,6 +162,7 @@ Material:
     - _FloatHighLightSize: 0.5
     - _FloatOuelintWidthType: 0
     - _FloatOutlineBaseMapBlendIntensity: 1
+    - _FloatOutlineMapIntensity: 1
     - _FloatOutlineType: 0
     - _FloatOutlineWidth: 1.5
     - _FloatOutlineWidthType: 0
@@ -166,6 +171,8 @@ Material:
     - _FloatRimLightInsideDistance: 0.22
     - _FloatRimLightIntensity: 0.15
     - _FloatRimLightMaskMapIntensity: 0
+    - _FloatRimLightNormalMapBlend: 1
+    - _FloatRimLightNormalSource: 0
     - _FloatRimLightShadeColorIntensity: 0.8
     - _FloatRimLightShadeMaskIntensity: 1
     - _FloatRimLightShadeMaskOffset: 0.4

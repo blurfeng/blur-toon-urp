@@ -40,7 +40,7 @@ half _BumpScale; //法线贴图强度
 //开关
 half _ToggleNormalMapOnBaseMap; //开关 基础贴图
 half _ToggleNormalMapOnHighLight; //开关 高光
-half _ToggleNormalMapOnRimLight; //开关 边缘光
+//（边缘光法线来源改为边缘光段的专属配置 _FloatRimLightNormalSource / _FloatRimLightNormalMapBlend）
 
 
 //-------- HighLight 镜面高光 --------
@@ -59,6 +59,9 @@ half4 _ColorRimLightColor; //颜色
 half _FloatRimLightIntensity; //强度
 half _FloatRimLightInsideDistance; //内部距离
 half _ToggleRimLightHard; //开关 硬边缘
+//法线来源（边缘光专属）
+half _FloatRimLightNormalSource; //法线来源 0=几何法线 1=法线贴图 2=混合
+half _FloatRimLightNormalMapBlend; //混合模式下 几何↔法线贴图 的混合强度
 //暗部遮罩
 half _FloatRimLightShadeMaskIntensity; //暗部遮罩强度
 half _FloatRimLightShadeMaskOffset; //暗部遮罩偏移
@@ -122,6 +125,9 @@ half4 _ColorOutlineColor;
 half _FloatOutlineWidth;
 half _ToggleOutlineBaseMapBlend;
 half _FloatOutlineBaseMapBlendIntensity;
+//描边纹理贴图
+float4 _TexOutlineMap_ST; //描边纹理贴图 ST
+half _FloatOutlineMapIntensity; //描边纹理混合 强度
 CBUFFER_END
 
 #endif // BLURTOONURP_LIT_INPUT_INCLUDED

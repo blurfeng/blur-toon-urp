@@ -107,7 +107,7 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.LabelItem("法线贴图的有效开关");
             EditorGUIx.SwitchButton("基础贴图", GetMaterialProperty("_ToggleNormalMapOnBaseMap"));
             EditorGUIx.SwitchButton("高光", GetMaterialProperty("_ToggleNormalMapOnHighLight"));
-            EditorGUIx.SwitchButton("边缘光", GetMaterialProperty("_ToggleNormalMapOnRimLight"));
+            //边缘光的法线来源已改为【边缘光】面板中的专属「法线来源」配置，此处不再提供共用开关。
         }
         #endregion
 
@@ -170,6 +170,7 @@ namespace BlurToonURP.EditorGUIx
         private static readonly GUIContent ContentOutlineType = new GUIContent("描边类型", "法线(顶点色法线)外扩描边。 VertexNormal : 顶点法线，VertexColor : 顶点颜色");
         private static readonly GUIContent ContentOutlineWidthType = new GUIContent("宽度类型", "Same : 相同宽度，Scaling : 变化宽度");
         private static readonly GUIContent ContentOutlineBaseMapBlend = new GUIContent("基础贴图混合", "与基础贴图的颜色进行混合，使描边色更加自然。");
+        private static readonly GUIContent ContentOutlineMap = new GUIContent("描边纹理", "描边专用纹理，调制描边颜色（彩色描边/图案/噪声等），UV 与基础贴图相同。指定贴图后自动生效。");
 
         /// <summary>
         /// 关键词 外描边 开启
@@ -187,6 +188,10 @@ namespace BlurToonURP.EditorGUIx
         /// 通道名称 外描边
         /// </summary>
         private const string MatPassNameOutline = "Outline";
+        /// <summary>
+        /// 关键词 描边纹理贴图 开启
+        /// </summary>
+        private const string MatKeywordOutlineMapOn = "_OUTLINE_MAP_ON";
 
         /// <summary>
         /// 描边类型
@@ -263,12 +268,50 @@ namespace BlurToonURP.EditorGUIx
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.Space();
+
+            //子面板 描边纹理贴图
+            EditorGUIx.FoldoutPanel("描边纹理贴图", () =>
+            {
+                EditorGUIx.LabelItem(new GUIContent("纹理调制描边", "用一张描边专用纹理调制描边颜色，可做彩色描边、图案、噪声等。UV 与基础贴图相同。"));
+                //条目 描边纹理贴图
+                var matPropTexOutlineMap = GetMaterialProperty("_TexOutlineMap");
+                MaterialEditor.TexturePropertySingleLine(ContentOutlineMap, matPropTexOutlineMap);
+                MaterialEditor.TextureScaleOffsetProperty(matPropTexOutlineMap);
+                //设置 关键词（多选编辑：按各材质是否指定描边纹理同步）
+                ApplyKeywordByTexture(MatKeywordOutlineMapOn, "_TexOutlineMap");
+
+                //条目 混合强度
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatOutlineMapIntensity"), "混合强度");
+            }
+            , EditorGUIx.EFoldoutStyleType.Sub);
         }
         #endregion
         
         #region 主面板-边缘光
         private static readonly GUIContent ContentRimLightShadeMask = new GUIContent("暗部遮罩", "对“主光源反方向”的“边缘光”进行遮罩");
         private static readonly GUIContent ContentRimLightMaskTex = new GUIContent("遮罩贴图", "在遮罩贴图中绘制边缘光的分布与强度，uv坐标与基础贴图相同。");
+        private static readonly GUIContent ContentRimLightNormalSource = new GUIContent("法线来源", "边缘光使用的法线来源：几何法线（较平滑）/ 法线贴图（含细节）/ 混合（两者按强度插值）。");
+
+        /// <summary>
+        /// 边缘光 法线来源
+        /// </summary>
+        private enum ERimLightNormalSource
+        {
+            /// <summary>
+            /// 几何法线（顶点法线插值）
+            /// </summary>
+            VertexNormal,
+
+            /// <summary>
+            /// 法线贴图
+            /// </summary>
+            NormalMap,
+
+            /// <summary>
+            /// 混合（几何法线 ↔ 法线贴图）
+            /// </summary>
+            Blend
+        }
 
         /// <summary>
         /// 关键词 边缘光 开启
@@ -310,6 +353,17 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightInsideDistance"), "内部距离");
             //条目
             EditorGUIx.SwitchButton("硬边缘", GetMaterialProperty("_ToggleRimLightHard"));
+
+            //条目 法线来源（边缘光专属：几何法线 / 法线贴图 / 混合）
+            var matPropRimLightNormalSource = GetMaterialProperty("_FloatRimLightNormalSource");
+            EditorGUIx.DropdownEnum(ContentRimLightNormalSource, matPropRimLightNormalSource, typeof(ERimLightNormalSource), MaterialEditor);
+            //仅“混合”模式显示 几何↔法线贴图 的混合强度滑条
+            if (matPropRimLightNormalSource.floatValue.Equals((float)ERimLightNormalSource.Blend))
+            {
+                EditorGUI.indentLevel++;
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightNormalMapBlend"), "| 混合强度");
+                EditorGUI.indentLevel--;
+            }
             EditorGUILayout.Space();
 
             //子面板 暗部遮罩
