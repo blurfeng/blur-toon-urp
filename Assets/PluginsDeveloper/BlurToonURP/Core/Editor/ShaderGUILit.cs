@@ -48,7 +48,10 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.ColorProperty(GetMaterialProperty("_BaseMapBlendColor"), "混合颜色");
             //基础贴图混合颜色强度
             MaterialEditor.RangeProperty(GetMaterialProperty("_BaseMapBlendColorIntensity"), "混合强度");
-            
+
+            //法线贴图开关（基础贴图光照使用法线贴图）
+            NormalMapToggle("法线贴图", "_ToggleNormalMapOnBaseMap");
+
             //暗部颜色1
             EditorGUIx.LabelItem("暗部颜色");
             EditorGUILayout.BeginHorizontal();
@@ -415,11 +418,27 @@ namespace BlurToonURP.EditorGUIx
 
         #region 主面板-法线贴图
         private static GUIContent m_ContentBaseNormalMap = new GUIContent("法线贴图", "法线偏移 : 贴图采样矢量(sRGB)进行法线偏移");
-        
+
+        /// <summary>
+        /// 当前(激活)材质是否已指定有效的法线贴图（_BumpMap）。用于各效果面板的法线开关红字提示。
+        /// </summary>
+        private bool HasNormalMap => GetMaterialProperty("_BumpMap").textureValue != null;
+
+        /// <summary>
+        /// 绘制某效果的“使用法线贴图”开关；开启但未指定法线贴图时红字提示。
+        /// 面向对象：各效果面板各自持有自己的法线开关，而非在法线面板集中设置。
+        /// </summary>
+        private void NormalMapToggle(string label, string toggleProperty)
+        {
+            var p = GetMaterialProperty(toggleProperty);
+            EditorGUIx.SwitchButton(label, p);
+            if (p.floatValue.Equals(1) && !HasNormalMap)
+                EditorGUIx.LabelError("⚠ 未指定法线贴图（见【法线贴图 NormalMap】面板），此开关不生效");
+        }
+
         /// <summary>
         /// 主界面 法线贴图
         /// </summary>
-        /// <param name="material"></param>
         private void PanelMainNormalMap()
         {
             //条目 法线贴图&强度 缩放%位移
@@ -427,12 +446,13 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.TexturePropertySingleLine(m_ContentBaseNormalMap, matPropTexNormalMap, GetMaterialProperty("_BumpScale"));
             MaterialEditor.TextureScaleOffsetProperty(matPropTexNormalMap);
 
-            EditorGUIx.LabelItem("法线贴图的有效开关");
-            EditorGUIx.SwitchButton("基础贴图", GetMaterialProperty("_ToggleNormalMapOnBaseMap"));
-            EditorGUIx.SwitchButton("高光", GetMaterialProperty("_ToggleNormalMapOnHighLight"));
-            EditorGUIx.SwitchButton("材质捕获", GetMaterialProperty("_ToggleNormalMapOnMatCap"));
-            EditorGUIx.SwitchButton("自发光（视角变化色）", GetMaterialProperty("_ToggleNormalMapOnEmissive"));
-            //边缘光的法线来源已改为【边缘光】面板中的专属「法线来源」配置，此处不再提供共用开关。
+            //法线的“有效开关”已分散到各效果面板（面向对象）：基础贴图/高光/材质捕获/自发光 各自设置，
+            //边缘光在【边缘光】面板用“法线来源”配置。此处仅负责指定法线贴图本身。
+            EditorGUILayout.Space();
+            EditorGUIx.LabelItem(new GUIContent("法线的启用开关在各效果面板内单独设置",
+                "基础贴图/高光/材质捕获/自发光 的法线开关分别在各自面板；边缘光在【边缘光】面板用“法线来源”配置。"));
+            if (!HasNormalMap)
+                EditorGUIx.LabelError("⚠ 尚未指定法线贴图：各效果的法线开关即使开启也不会生效");
         }
         #endregion
 
@@ -474,6 +494,9 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightSize"), "大小");
             //条目 边缘羽化（0≈色阶硬边，大=柔边；连续覆盖“色阶↔柔边”）
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightBlur"), "边缘羽化");
+
+            //法线贴图开关（高光使用法线贴图）
+            NormalMapToggle("法线贴图", "_ToggleNormalMapOnHighLight");
 
             //条目 阴影遮罩
             var matPropToggleHLShadowMask = GetMaterialProperty("_ToggleHighLightShadowMask");
@@ -703,6 +726,9 @@ namespace BlurToonURP.EditorGUIx
                 MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightNormalMapBlend"), "| 混合强度");
                 EditorGUI.indentLevel--;
             }
+            //法线来源用到法线贴图(法线贴图/混合)但未指定法线贴图时红字提示
+            if (!matPropRimLightNormalSource.floatValue.Equals((float)ERimLightNormalSource.VertexNormal) && !HasNormalMap)
+                EditorGUIx.LabelError("⚠ 未指定法线贴图（见【法线贴图 NormalMap】面板），法线来源不生效");
             EditorGUILayout.Space();
 
             //子面板 暗部遮罩
@@ -859,6 +885,8 @@ namespace BlurToonURP.EditorGUIx
             {
                 EditorGUI.indentLevel++;
                 MaterialEditor.ColorProperty(GetMaterialProperty("_ColorEmissiveViewChangeColor"), "| 视角变化颜色");
+                //法线贴图开关（视角变化颜色的菲涅尔使用法线贴图）
+                NormalMapToggle("| 法线贴图", "_ToggleNormalMapOnEmissive");
                 EditorGUI.indentLevel--;
             }
         }
@@ -933,6 +961,9 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatMatCapColorBlendIntensity"), "混合强度");
             //条目 旋转
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatMatCapRotate"), "旋转");
+
+            //法线贴图开关（材质捕获采样使用法线贴图）
+            NormalMapToggle("法线贴图", "_ToggleNormalMapOnMatCap");
 
             //条目 阴影遮罩
             var matPropToggleShadowMask = GetMaterialProperty("_ToggleMatCapShadowMask");

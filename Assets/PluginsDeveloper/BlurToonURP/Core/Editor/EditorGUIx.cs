@@ -350,6 +350,33 @@ namespace BlurToonURP.EditorGUIx
             GUILayout.Label(text, EditorStyles.boldLabel);
             GUI.color = ColorDefault;
         }
+
+        private static GUIStyle _errorLabel;
+        private static GUIStyle ErrorLabel
+        {
+            get
+            {
+                if (_errorLabel == null)
+                {
+                    _errorLabel = new GUIStyle(EditorStyles.wordWrappedMiniLabel);
+                    _errorLabel.fontStyle = FontStyle.Bold;
+                }
+
+                return _errorLabel;
+            }
+        }
+
+        /// <summary>
+        /// 红字警告提示（如：开关已开启但缺少有效贴图）。会正确保存/还原 GUI.color。
+        /// </summary>
+        /// <param name="text"></param>
+        public static void LabelError(string text)
+        {
+            var prev = GUI.color;
+            GUI.color = new Color(1f, 0.42f, 0.38f);
+            GUILayout.Label(text, ErrorLabel);
+            GUI.color = prev;
+        }
         #endregion
     }
 }
