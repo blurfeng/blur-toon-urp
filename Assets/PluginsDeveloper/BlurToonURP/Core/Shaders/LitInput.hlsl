@@ -70,6 +70,7 @@ half _BumpScale; //法线贴图强度
 half _ToggleNormalMapOnBaseMap; //开关 基础贴图
 half _ToggleNormalMapOnHighLight; //开关 高光
 half _ToggleNormalMapOnMatCap; //开关 材质捕获
+half _ToggleNormalMapOnEmissive; //开关 自发光（视角变化颜色）
 //（边缘光法线来源改为边缘光段的专属配置 _FloatRimLightNormalSource / _FloatRimLightNormalMapBlend）
 
 
@@ -117,6 +118,26 @@ half _FloatMatCapShadowMaskIntensity; //阴影遮罩强度
 //遮罩贴图
 float4 _TexMatCapMaskMap_ST; //遮罩贴图 ST
 half _FloatMatCapMaskMapIntensity; //遮罩贴图强度
+
+
+//-------- Emissive 自发光 --------
+//（_ToggleEmissive / _ToggleEmissiveAnim 仅记录并驱动关键词 _EMISSIVE_ON / _EMISSIVE_ANIM，HLSL 不读取，故不在此声明）
+float4 _TexEmissiveMap_ST; //自发光贴图 ST
+half4 _ColorEmissiveMapColor; //自发光颜色（HDR）
+//动画
+half _FloatEmissiveAnimUVType; //UV比例类型 0=FullMap 1=MatCap
+half _FloatEmissiveAnimSpeed; //移动速度
+half _FloatEmissiveAnimDirU; //移动方向U
+half _FloatEmissiveAnimDirV; //移动方向V
+half _FloatEmissiveAnimRotate; //旋转速度
+half _ToggleEmissiveAnimPingpong; //开关 来回移动
+//变化颜色
+half _ToggleEmissiveChangeColor; //开关 变化颜色
+half4 _ColorEmissiveChangeColor; //变化颜色（HDR）
+half _FloatEmissiveChangeSpeed; //变化速度
+//视角变化颜色
+half _ToggleEmissiveViewChangeColor; //开关 视角变化颜色
+half4 _ColorEmissiveViewChangeColor; //视角变化颜色（HDR）
 
 
 //-------- Light 光照设置 --------

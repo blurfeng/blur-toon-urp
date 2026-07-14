@@ -59,6 +59,7 @@ Shader "BlurToonURP/Lit"
         _ToggleNormalMapOnBaseMap ("NormalMap On BaseMap", Float) = 0 //开关 基础贴图
         _ToggleNormalMapOnHighLight ("NormalMap On HighLight", Float) = 0 //开关 高光
         _ToggleNormalMapOnMatCap ("NormalMap On MatCap", Float) = 0 //开关 材质捕获
+        _ToggleNormalMapOnEmissive ("NormalMap On Emissive", Float) = 0 //开关 自发光（视角变化颜色）
         //（边缘光的法线来源已改为边缘光面板中的专属配置 _FloatRimLightNormalSource，此处不再共用开关）
 
 
@@ -119,6 +120,27 @@ Shader "BlurToonURP/Lit"
         //遮罩贴图
         _TexMatCapMaskMap ("MatCap MaskMap", 2D) = "white" {} //遮罩贴图
         _FloatMatCapMaskMapIntensity ("MatCap MaskMap Intensity", Range(-1, 1)) = 0 //遮罩贴图强度
+
+
+        //----------- Emissive 自发光 -----------
+        _ToggleEmissive ("Emissive Toggle", Float ) = 0 //自发光开关 ●仅用于记录 设置关键词开启
+        _TexEmissiveMap ("EmissiveMap", 2D) = "white" {} //自发光贴图（RGB=颜色，A=强度）
+        [HDR]_ColorEmissiveMapColor ("EmissiveMap Color", Color) = (0,0,0,1) //自发光 颜色（HDR，默认黑=不发光）
+        //自发光动画
+        _ToggleEmissiveAnim ("EmissiveAnim Toggle", Float) = 0 //动画开关 ●记录 驱动关键词（关=固定 开=动画）
+        _FloatEmissiveAnimUVType ("EmissiveAnim UVType", Float) = 0 //UV比例类型 0=FullMap 1=MatCap
+        _FloatEmissiveAnimSpeed ("EmissiveAnim Speed", Float ) = 0.5 //移动速度
+        _FloatEmissiveAnimDirU ("EmissiveAnim DirU", Range(-1, 1)) = 0.5 //移动方向U
+        _FloatEmissiveAnimDirV ("EmissiveAnim DirV", Range(-1, 1)) = 0.5 //移动方向V
+        _FloatEmissiveAnimRotate ("EmissiveAnim Rotate", Float ) = 0 //旋转速度
+        _ToggleEmissiveAnimPingpong ("EmissiveAnim Pingpong", Float) = 0 //开关 来回移动
+        //变化颜色
+        _ToggleEmissiveChangeColor ("Emissive ChangeColor Toggle", Float) = 0 //开关 变化颜色
+        [HDR]_ColorEmissiveChangeColor ("Emissive ChangeColor", Color) = (0,0,0,1) //变化颜色（HDR）
+        _FloatEmissiveChangeSpeed ("Emissive ChangeSpeed", Float ) = 0 //变化速度
+        //视角变化颜色
+        _ToggleEmissiveViewChangeColor ("Emissive ViewChangeColor Toggle", Float) = 0 //开关 视角变化颜色
+        [HDR]_ColorEmissiveViewChangeColor ("Emissive ViewChangeColor", Color) = (0,0,0,1) //视角变化颜色（HDR）
 
         //----------- Light 光照设置 -----------
         _FloatRealtimeLightIntensity ("Realtime Light Intensity", Range(0, 10)) = 5 //实时光照强度
@@ -232,6 +254,9 @@ Shader "BlurToonURP/Lit"
             //材质捕获
             #pragma shader_feature_local _MATCAP_ON
             #pragma shader_feature_local _ _MATCAP_COLORBLEND_MULTIPLY _MATCAP_COLORBLEND_LERP //无=Additive / 乘算 / 插值
+            //自发光
+            #pragma shader_feature_local _EMISSIVE_ON
+            #pragma shader_feature_local _ _EMISSIVE_ANIM //无=固定 / 动画
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -299,6 +324,11 @@ Shader "BlurToonURP/Lit"
             #if defined(_MATCAP_ON)
             TEXTURE2D(_TexMatCapMap); SAMPLER(sampler_TexMatCapMap);
             TEXTURE2D(_TexMatCapMaskMap); SAMPLER(sampler_TexMatCapMaskMap);
+            #endif
+
+            //自发光贴图
+            #if defined(_EMISSIVE_ON)
+            TEXTURE2D(_TexEmissiveMap); SAMPLER(sampler_TexEmissiveMap);
             #endif
 
             //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
@@ -650,6 +680,57 @@ Shader "BlurToonURP/Lit"
                 colorFinalBlend = lerp(colorFinalBlend, colorMatCapFinal, matCapMaskIntensity);
                 #endif
                 //-------- MatCap 材质捕获 -------- End
+
+
+                //-------- Emissive 自发光 -------- Start
+                #if defined(_EMISSIVE_ON)
+                #if defined(_EMISSIVE_ANIM)
+                    //◆ 动画模式
+                    //UV比例模式：FullMap（uv）↔ MatCap（观察空间法线，球面映射）
+                    float2 uvEmissiveMatCap = mul(UNITY_MATRIX_V, float4(normalDirWS, 1)).xy;
+                    uvEmissiveMatCap = uvEmissiveMatCap * 0.5 + 0.5;
+                    float2 uvEmissive = lerp(uv, uvEmissiveMatCap, _FloatEmissiveAnimUVType);
+
+                    //移动速度（可来回）
+                    float timeValue = _Time.y;
+                    float emissiveMoveSpeed = timeValue * _FloatEmissiveAnimSpeed;
+                    emissiveMoveSpeed = lerp(emissiveMoveSpeed, sin(emissiveMoveSpeed), _ToggleEmissiveAnimPingpong);
+                    //旋转
+                    float uvEmissiveRotate = _FloatEmissiveAnimRotate * 3.141592654 * emissiveMoveSpeed;
+                    uvEmissive = RotateUV(uvEmissive, uvEmissiveRotate, float2(0.5, 0.5));
+                    //移动方向
+                    float2 emissiveMoveDir = float2(_FloatEmissiveAnimDirU, _FloatEmissiveAnimDirV);
+                    uvEmissive = uvEmissive - emissiveMoveDir * emissiveMoveSpeed;
+
+                    //自发光颜色
+                    half3 colorEmissiveBlend = _ColorEmissiveMapColor.rgb;
+                    //变化颜色（cos 时间曲线映射到 0-1 来回过渡）
+                    float colorChangeFactor = cos(_FloatEmissiveChangeSpeed * timeValue) * 0.5 + 0.5;
+                    half3 colorChange = lerp(colorEmissiveBlend, _ColorEmissiveChangeColor.rgb, colorChangeFactor);
+                    colorEmissiveBlend = lerp(colorEmissiveBlend, colorChange, _ToggleEmissiveChangeColor);
+                    //视角变化颜色（菲涅尔：观察方向与法线夹角）
+                    float3 normalDirOnEmissive = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnEmissive);
+                    float colorViewChangeNdotV = 1 - saturate(dot(normalDirOnEmissive, viewDirWS));
+                    half3 colorViewChange = lerp(colorEmissiveBlend, _ColorEmissiveViewChangeColor.rgb, colorViewChangeNdotV);
+                    colorEmissiveBlend = lerp(colorEmissiveBlend, colorViewChange, _ToggleEmissiveViewChangeColor);
+
+                    //颜色采样动画UV，强度(A通道)采样静态UV
+                    half3 colorEmissive = SAMPLE_TEXTURE2D(_TexEmissiveMap, sampler_TexEmissiveMap, TRANSFORM_TEX(uvEmissive, _TexEmissiveMap)).rgb;
+                    float emissiveIntensity = SAMPLE_TEXTURE2D(_TexEmissiveMap, sampler_TexEmissiveMap, TRANSFORM_TEX(uv, _TexEmissiveMap)).a;
+                    half3 colorEmissiveFinal = colorEmissive * colorEmissiveBlend * emissiveIntensity;
+                    //最小强度限制（低于阈值不发光，避免暗噪）
+                    colorEmissiveFinal *= step(0.005, emissiveIntensity);
+
+                    colorFinalBlend += colorEmissiveFinal;
+                #else
+                    //◆ 固定模式：强度=贴图A通道
+                    float4 colorEmissive = SAMPLE_TEXTURE2D(_TexEmissiveMap, sampler_TexEmissiveMap, TRANSFORM_TEX(uv, _TexEmissiveMap));
+                    float emissiveIntensity = colorEmissive.a;
+                    half3 colorEmissiveFinal = colorEmissive.rgb * _ColorEmissiveMapColor.rgb * emissiveIntensity;
+                    colorFinalBlend += colorEmissiveFinal;
+                #endif
+                #endif
+                //-------- Emissive 自发光 -------- End
 
 
                 //最终Alpha：默认取基础贴图Alpha；裁剪-透明度模式下改用裁剪值以呈现溶解淡出（仅 Transparent 表面可见）

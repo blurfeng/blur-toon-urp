@@ -14,6 +14,7 @@ Material:
   m_ValidKeywords:
   - _ADDLIGHT_ON
   - _BASEMAP_SHADE_THRESHOLDMAP_ON
+  - _EMISSIVE_ON
   - _HIGHLIGHT_ON
   - _MATCAP_ON
   - _OUTLINE_ON
@@ -75,6 +76,10 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _TexClipMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexEmissiveMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -141,6 +146,12 @@ Material:
     - _FloatBuiltInLightDirBlend: 0.5
     - _FloatClipIntensity: 0
     - _FloatClipTransIntensity: 0
+    - _FloatEmissiveAnimDirU: 0.5
+    - _FloatEmissiveAnimDirV: 0.5
+    - _FloatEmissiveAnimRotate: 0
+    - _FloatEmissiveAnimSpeed: 0.5
+    - _FloatEmissiveAnimUVType: 0
+    - _FloatEmissiveChangeSpeed: 0
     - _FloatEnvLightIntensity: 2
     - _FloatGlobalExposureIntensity: 1
     - _FloatHighLightBlur: 0.1
@@ -202,6 +213,11 @@ Material:
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
     - _ToggleClipTransBaseMapAlpha: 0
+    - _ToggleEmissive: 1
+    - _ToggleEmissiveAnim: 0
+    - _ToggleEmissiveAnimPingpong: 0
+    - _ToggleEmissiveChangeColor: 0
+    - _ToggleEmissiveViewChangeColor: 0
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
@@ -215,6 +231,7 @@ Material:
     - _ToggleMatCap: 1
     - _ToggleMatCapShadowMask: 0
     - _ToggleNormalMapOnBaseMap: 0
+    - _ToggleNormalMapOnEmissive: 0
     - _ToggleNormalMapOnHighLight: 0
     - _ToggleNormalMapOnMatCap: 0
     - _ToggleNormalMapOnRimLight: 0
@@ -236,6 +253,9 @@ Material:
     - _BaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBuiltInLightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorEmissiveChangeColor: {r: 0, g: 0, b: 0, a: 1}
+    - _ColorEmissiveMapColor: {r: 1.4980394, g: 0, b: 0, a: 1}
+    - _ColorEmissiveViewChangeColor: {r: 0, g: 0, b: 0, a: 1}
     - _ColorHighLightColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorMatCapMapColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorOutlineColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}

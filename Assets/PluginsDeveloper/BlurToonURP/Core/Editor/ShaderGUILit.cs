@@ -18,6 +18,7 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.FoldoutPanel("【镜面高光 HighLight】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【外描边 Outline】粗细、颜色", PanelMainOutline);
             EditorGUIx.FoldoutPanel("【边缘光 RimLight】颜色、大小、遮罩", PanelMainRimLight);
+            EditorGUIx.FoldoutPanel("【自发光 Emissive】遮罩、颜色(HDR)、动画", PanelMainEmissive);
             EditorGUIx.FoldoutPanel("【材质捕获 MatCap】贴图、混合模式、遮罩", PanelMainMatCap);
             EditorGUIx.FoldoutPanel("【光照设置 LightSetting】光照开关、光照强度", PanelMainGlobalLight);
             
@@ -430,6 +431,7 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.SwitchButton("基础贴图", GetMaterialProperty("_ToggleNormalMapOnBaseMap"));
             EditorGUIx.SwitchButton("高光", GetMaterialProperty("_ToggleNormalMapOnHighLight"));
             EditorGUIx.SwitchButton("材质捕获", GetMaterialProperty("_ToggleNormalMapOnMatCap"));
+            EditorGUIx.SwitchButton("自发光（视角变化色）", GetMaterialProperty("_ToggleNormalMapOnEmissive"));
             //边缘光的法线来源已改为【边缘光】面板中的专属「法线来源」配置，此处不再提供共用开关。
         }
         #endregion
@@ -747,6 +749,107 @@ namespace BlurToonURP.EditorGUIx
         }
         #endregion
         
+        #region Emissive 自发光
+        private static readonly GUIContent ContentEmissiveMap = new GUIContent("自发光贴图", "自发光 = 贴图RGB(sRGB) × 自定义色(HDR) × 强度(贴图A通道)。HDR 颜色的 Intensity 越高越亮，配合后处理 Bloom 产生泛光。默认颜色黑色=不发光。");
+        private static readonly GUIContent ContentEmissiveAnimUVType = new GUIContent("UV比例模式", "FullMap : UV 满铺映射；MatCap : 按观察空间法线（球面）映射，随视角流动。");
+        private static readonly GUIContent ContentEmissiveViewChangeColor = new GUIContent("视角变化颜色", "按“观察方向”与“法线方向”的夹角在自发光色与该颜色间过渡（菲涅尔）。");
+
+        /// <summary>
+        /// 关键词 自发光 开启
+        /// </summary>
+        private const string MatKeywordEmissiveOn = "_EMISSIVE_ON";
+        /// <summary>
+        /// 关键词 自发光 动画（无关键词=固定）
+        /// </summary>
+        private const string MatKeywordEmissiveAnim = "_EMISSIVE_ANIM";
+
+        /// <summary>
+        /// 自发光动画 UV 比例模式
+        /// </summary>
+        private enum EEmissiveAnimUVType
+        {
+            /// <summary>
+            /// 满铺映射
+            /// </summary>
+            FullMap,
+
+            /// <summary>
+            /// 材质捕获（观察空间法线）
+            /// </summary>
+            MatCap
+        }
+
+        /// <summary>
+        /// 主面板 自发光
+        /// </summary>
+        private void PanelMainEmissive()
+        {
+            //条目 主开关
+            var matPropToggleEmissive = GetMaterialProperty("_ToggleEmissive");
+            EditorGUIx.SwitchButton("自发光-主开关", matPropToggleEmissive);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordEmissiveOn, "_ToggleEmissive");
+            if (!matPropToggleEmissive.floatValue.Equals(1))
+                return;
+
+            EditorGUIx.LabelItem(new GUIContent("贴图 × HDR颜色 × 强度(A通道)", "HDR 颜色的 Intensity 控制发光强度，会在 Bloom 后处理中产生泛光。"));
+            //条目 自发光贴图 & 颜色（HDR）
+            var matPropTexEmissive = GetMaterialProperty("_TexEmissiveMap");
+            MaterialEditor.TexturePropertySingleLine(ContentEmissiveMap, matPropTexEmissive, GetMaterialProperty("_ColorEmissiveMapColor"));
+            MaterialEditor.TextureScaleOffsetProperty(matPropTexEmissive);
+            EditorGUILayout.Space();
+
+            //子面板 自发光动画
+            EditorGUIx.FoldoutPanel("自发光动画", PanelSubEmissiveAnim, EditorGUIx.EFoldoutStyleType.Sub);
+        }
+
+        /// <summary>
+        /// 子面板 自发光动画（UV滚动/旋转/往复、变化颜色、视角变化颜色）
+        /// </summary>
+        private void PanelSubEmissiveAnim()
+        {
+            //条目 动画开关（关=固定 开=动画）
+            var matPropToggleAnim = GetMaterialProperty("_ToggleEmissiveAnim");
+            EditorGUIx.SwitchButton("自发光动画-开关", matPropToggleAnim);
+            //多选编辑：按各材质自身开关值同步关键词（无关键词=固定）
+            ApplyKeyword(MatKeywordEmissiveAnim, "_ToggleEmissiveAnim");
+            if (!matPropToggleAnim.floatValue.Equals(1))
+                return;
+
+            //条目 UV比例模式
+            EditorGUIx.DropdownEnum(ContentEmissiveAnimUVType, GetMaterialProperty("_FloatEmissiveAnimUVType"), typeof(EEmissiveAnimUVType), MaterialEditor);
+            //条目 移动 / 旋转 / 往复
+            MaterialEditor.FloatProperty(GetMaterialProperty("_FloatEmissiveAnimSpeed"), "移动速度");
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatEmissiveAnimDirU"), "移动方向U");
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatEmissiveAnimDirV"), "移动方向V");
+            MaterialEditor.FloatProperty(GetMaterialProperty("_FloatEmissiveAnimRotate"), "旋转速度");
+            EditorGUIx.SwitchButton("来回移动", GetMaterialProperty("_ToggleEmissiveAnimPingpong"));
+            EditorGUILayout.Space();
+
+            //条目 颜色变化
+            var matPropToggleChange = GetMaterialProperty("_ToggleEmissiveChangeColor");
+            EditorGUIx.SwitchButton("颜色变化", matPropToggleChange);
+            if (matPropToggleChange.floatValue.Equals(1))
+            {
+                EditorGUI.indentLevel++;
+                MaterialEditor.ColorProperty(GetMaterialProperty("_ColorEmissiveChangeColor"), "| 变化颜色");
+                MaterialEditor.FloatProperty(GetMaterialProperty("_FloatEmissiveChangeSpeed"), "| 变化速度");
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.Space();
+
+            //条目 视角变化颜色
+            var matPropToggleView = GetMaterialProperty("_ToggleEmissiveViewChangeColor");
+            EditorGUIx.SwitchButton(ContentEmissiveViewChangeColor, matPropToggleView);
+            if (matPropToggleView.floatValue.Equals(1))
+            {
+                EditorGUI.indentLevel++;
+                MaterialEditor.ColorProperty(GetMaterialProperty("_ColorEmissiveViewChangeColor"), "| 视角变化颜色");
+                EditorGUI.indentLevel--;
+            }
+        }
+        #endregion
+
         #region MatCap 材质捕获
         private static readonly GUIContent ContentMatCapMap = new GUIContent("材质捕获贴图", "球面环境贴图（MatCap）：按世界法线在观察空间的朝向采样，与视角相关。基础色 = 贴图采样(sRGB) × 自定义色(HDR)。");
         private static readonly GUIContent ContentMatCapColorBlend = new GUIContent("颜色混合模式", "Additive 相加（线性减淡）/ Multiply 相乘（正片叠底）/ Lerp 插值混合。");
