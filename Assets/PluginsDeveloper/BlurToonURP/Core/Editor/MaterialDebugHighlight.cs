@@ -51,7 +51,7 @@ namespace BlurToonURP.EditorGUIx
             //记录当前材质，供 Scene 绘制回调使用
             s_targetMaterial = target;
 
-            EditorGUIx.FoldoutPanel("【Debug 调试】仅编辑器用，不影响正式流程", () =>
+            EditorGUIx.FoldoutPanel("【调试 Debug】仅编辑器用，不影响正式流程", () =>
             {
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(new GUIContent(
