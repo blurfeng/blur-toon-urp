@@ -18,6 +18,7 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.FoldoutPanel("【镜面高光 HighLight】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【外描边 Outline】粗细、颜色", PanelMainOutline);
             EditorGUIx.FoldoutPanel("【边缘光 RimLight】颜色、大小、遮罩", PanelMainRimLight);
+            EditorGUIx.FoldoutPanel("【材质捕获 MatCap】贴图、混合模式、遮罩", PanelMainMatCap);
             EditorGUIx.FoldoutPanel("【光照设置 LightSetting】光照开关、光照强度", PanelMainGlobalLight);
             
         }
@@ -428,6 +429,7 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.LabelItem("法线贴图的有效开关");
             EditorGUIx.SwitchButton("基础贴图", GetMaterialProperty("_ToggleNormalMapOnBaseMap"));
             EditorGUIx.SwitchButton("高光", GetMaterialProperty("_ToggleNormalMapOnHighLight"));
+            EditorGUIx.SwitchButton("材质捕获", GetMaterialProperty("_ToggleNormalMapOnMatCap"));
             //边缘光的法线来源已改为【边缘光】面板中的专属「法线来源」配置，此处不再提供共用开关。
         }
         #endregion
@@ -745,6 +747,100 @@ namespace BlurToonURP.EditorGUIx
         }
         #endregion
         
+        #region MatCap 材质捕获
+        private static readonly GUIContent ContentMatCapMap = new GUIContent("材质捕获贴图", "球面环境贴图（MatCap）：按世界法线在观察空间的朝向采样，与视角相关。基础色 = 贴图采样(sRGB) × 自定义色(HDR)。");
+        private static readonly GUIContent ContentMatCapColorBlend = new GUIContent("颜色混合模式", "Additive 相加（线性减淡）/ Multiply 相乘（正片叠底）/ Lerp 插值混合。");
+        private static readonly GUIContent ContentMatCapShadowMask = new GUIContent("阴影遮罩", "MatCap 在暗部区域是否受阴影影响而压暗。");
+        private static readonly GUIContent ContentMatCapMaskMap = new GUIContent("遮罩贴图", "在遮罩贴图 R 通道绘制 MatCap 的分布与强度，UV 与基础贴图相同。");
+
+        /// <summary>
+        /// 关键词 材质捕获 开启
+        /// </summary>
+        private const string MatKeywordMatCapOn = "_MATCAP_ON";
+        /// <summary>
+        /// 关键词 材质捕获 颜色混合 相乘
+        /// </summary>
+        private const string MatKeywordMatCapColorBlendMultiply = "_MATCAP_COLORBLEND_MULTIPLY";
+        /// <summary>
+        /// 关键词 材质捕获 颜色混合 插值
+        /// </summary>
+        private const string MatKeywordMatCapColorBlendLerp = "_MATCAP_COLORBLEND_LERP";
+
+        /// <summary>
+        /// 颜色混合模式
+        /// </summary>
+        private enum EColorBlend
+        {
+            /// <summary>
+            /// 相加（线性减淡，默认无关键词）
+            /// </summary>
+            Additive,
+
+            /// <summary>
+            /// 相乘（正片叠底）
+            /// </summary>
+            Multiply,
+
+            /// <summary>
+            /// 插值混合
+            /// </summary>
+            Lerp
+        }
+
+        /// <summary>
+        /// 主面板 材质捕获
+        /// </summary>
+        private void PanelMainMatCap()
+        {
+            //条目 主开关
+            var matPropToggleMatCap = GetMaterialProperty("_ToggleMatCap");
+            EditorGUIx.SwitchButton("材质捕获-主开关", matPropToggleMatCap);
+            //多选编辑：按各材质自身开关值同步关键词
+            ApplyKeyword(MatKeywordMatCapOn, "_ToggleMatCap");
+            if (!matPropToggleMatCap.floatValue.Equals(1))
+                return;
+
+            EditorGUIx.LabelItem("材质捕获 设置");
+            //条目 贴图 & 颜色（HDR）
+            var matPropTexMatCap = GetMaterialProperty("_TexMatCapMap");
+            MaterialEditor.TexturePropertySingleLine(ContentMatCapMap, matPropTexMatCap, GetMaterialProperty("_ColorMatCapMapColor"));
+            MaterialEditor.TextureScaleOffsetProperty(matPropTexMatCap);
+
+            //条目 颜色混合模式
+            var matPropColorBlend = GetMaterialProperty("_FloatMatCapColorBlend");
+            EditorGUIx.DropdownEnum(ContentMatCapColorBlend, matPropColorBlend, typeof(EColorBlend), MaterialEditor);
+            //多选编辑：按各材质自身模式同步关键词（Additive=无关键词）
+            ApplyKeyword(MatKeywordMatCapColorBlendMultiply, "_FloatMatCapColorBlend", (float)EColorBlend.Multiply);
+            ApplyKeyword(MatKeywordMatCapColorBlendLerp, "_FloatMatCapColorBlend", (float)EColorBlend.Lerp);
+            //条目 颜色混合强度
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatMatCapColorBlendIntensity"), "混合强度");
+            //条目 旋转
+            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatMatCapRotate"), "旋转");
+
+            //条目 阴影遮罩
+            var matPropToggleShadowMask = GetMaterialProperty("_ToggleMatCapShadowMask");
+            EditorGUIx.SwitchButton(ContentMatCapShadowMask, matPropToggleShadowMask);
+            if (matPropToggleShadowMask.floatValue.Equals(1))
+            {
+                EditorGUI.indentLevel++;
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatMatCapShadowMaskIntensity"), "| 阴影遮罩强度");
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.Space();
+
+            //子面板 遮罩贴图（贴图默认白色=全显示，无需关键词，始终采样）
+            EditorGUIx.FoldoutPanel("遮罩贴图", () =>
+            {
+                EditorGUIx.LabelItem(new GUIContent("遮罩绘制材质捕获", "值越大 MatCap 越明显。默认白色贴图=全显示。"));
+                var matPropTexMatCapMask = GetMaterialProperty("_TexMatCapMaskMap");
+                MaterialEditor.TexturePropertySingleLine(ContentMatCapMaskMap, matPropTexMatCapMask);
+                MaterialEditor.TextureScaleOffsetProperty(matPropTexMatCapMask);
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatMatCapMaskMapIntensity"), "遮罩强度");
+            }
+            , EditorGUIx.EFoldoutStyleType.Sub);
+        }
+        #endregion
+
         #region Lighting Setting 光照设置
         private static readonly GUIContent ContentGlobalLightGIIntensity = new GUIContent("光照强度", "环境光照强度 : 例如“光照探针”的影响强度。");
         private static readonly GUIContent ContentLightHorLock = new GUIContent("光照水平锁定", "将光照的高度锁定至水平，使暗部在水平轴向进行变化。");
@@ -838,6 +934,9 @@ namespace BlurToonURP.EditorGUIx
             this.SwitchButtonAndSubFloat(
                 "描边", GetMaterialProperty("_ToggleGlobalLightOutline"),
                 "强度", GetMaterialProperty("_GlobalLightOutlineMixedIntensity"));
+
+            //材质捕获（简单开关，不带混合强度，与 AleToon 一致）
+            EditorGUIx.SwitchButton("材质捕获", GetMaterialProperty("_ToggleGlobalLightMatCapMap"));
         }
         #endregion
 

@@ -69,6 +69,7 @@ half _BumpScale; //法线贴图强度
 //开关
 half _ToggleNormalMapOnBaseMap; //开关 基础贴图
 half _ToggleNormalMapOnHighLight; //开关 高光
+half _ToggleNormalMapOnMatCap; //开关 材质捕获
 //（边缘光法线来源改为边缘光段的专属配置 _FloatRimLightNormalSource / _FloatRimLightNormalMapBlend）
 
 
@@ -103,6 +104,21 @@ float4 _TexRimLightMaskMap_ST;
 half _FloatRimLightMaskMapIntensity; //遮罩贴图强度
 
 
+//-------- MatCap 材质捕获 --------
+//（_ToggleMatCap 仅记录并驱动关键词 _MATCAP_ON，HLSL 不读取，故不在此声明）
+float4 _TexMatCapMap_ST; //材质捕获贴图 ST
+half4 _ColorMatCapMapColor; //材质捕获颜色
+half _FloatMatCapColorBlend; //颜色混合模式 0=Additive 1=Multiply 2=Lerp（记录，驱动关键词）
+half _FloatMatCapColorBlendIntensity; //颜色混合强度
+half _FloatMatCapRotate; //旋转
+//阴影遮罩
+half _ToggleMatCapShadowMask; //开关 阴影遮罩
+half _FloatMatCapShadowMaskIntensity; //阴影遮罩强度
+//遮罩贴图
+float4 _TexMatCapMaskMap_ST; //遮罩贴图 ST
+half _FloatMatCapMaskMapIntensity; //遮罩贴图强度
+
+
 //-------- Light 光照设置 --------
 half _FloatRealtimeLightIntensity; //实时光照强度
 half _FloatEnvLightIntensity; //环境光照强度
@@ -129,6 +145,7 @@ half _ToggleGlobalLightRimLightShade; //边缘光暗部
 half _GlobalLightRimLightShadeMixedIntensity; //边缘光暗部和光照颜色的混合强度 0-1
 half _ToggleGlobalLightOutline; //描边
 half _GlobalLightOutlineMixedIntensity; //描边和光照颜色的混合强度 0-1
+half _ToggleGlobalLightMatCapMap; //材质捕获（简单开关，不带混合强度，与 AleToon 一致）
 
 //阴影设置
 half _ToggleShadowReceive; //开关 阴影接收

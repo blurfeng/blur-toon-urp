@@ -15,15 +15,16 @@ Material:
   - _ADDLIGHT_ON
   - _BASEMAP_SHADE_THRESHOLDMAP_ON
   - _HIGHLIGHT_ON
+  - _MATCAP_ON
   - _OUTLINE_ON
   - _OUTLINE_WIDTH_SAME
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2000
+  m_CustomRenderQueue: 3000
   stringTagMap:
-    RenderType: Opaque
+    RenderType: Transparent
   disabledShaderPasses: []
   m_LockedProperties: _FloatShadeThresholdMapIntensity
   m_SavedProperties:
@@ -81,6 +82,14 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TexMatCapMap:
+        m_Texture: {fileID: 2800000, guid: fb63a071d5cedf6498c08f3effe1872e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexMatCapMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _TexOutlineMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -117,7 +126,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _DstBlend: 0
+    - _DstBlend: 10
     - _EnvironmentReflections: 1
     - _FloatAddLightIntensity: 1
     - _FloatBaseMapExposureIntensity: 1
@@ -138,6 +147,11 @@ Material:
     - _FloatHighLightIntensity: 0.5
     - _FloatHighLightMaskMapIntensity: 1
     - _FloatHighLightSize: 0.5
+    - _FloatMatCapColorBlend: 0
+    - _FloatMatCapColorBlendIntensity: 1
+    - _FloatMatCapMaskMapIntensity: 0
+    - _FloatMatCapRotate: 0
+    - _FloatMatCapShadowMaskIntensity: 0
     - _FloatOutlineBaseMapBlendIntensity: 1
     - _FloatOutlineMapIntensity: 1
     - _FloatOutlineType: 0
@@ -181,8 +195,8 @@ Material:
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SrcBlend: 1
-    - _Surface: 0
+    - _SrcBlend: 5
+    - _Surface: 1
     - _ToggleAddLight: 1
     - _ToggleAlphaClip: 0
     - _ToggleBuiltInLight: 0
@@ -191,16 +205,21 @@ Material:
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
+    - _ToggleGlobalLightMatCapMap: 1
     - _ToggleGlobalLightOutline: 1
     - _ToggleGlobalLightRimLight: 1
     - _ToggleGlobalLightRimLightShade: 1
     - _ToggleHighLight: 1
     - _ToggleLightHorLockBaseMap: 0
     - _ToggleLightHorLockRimLight: 0
+    - _ToggleMatCap: 1
+    - _ToggleMatCapShadowMask: 0
     - _ToggleNormalMapOnBaseMap: 0
     - _ToggleNormalMapOnHighLight: 0
+    - _ToggleNormalMapOnMatCap: 0
     - _ToggleNormalMapOnRimLight: 0
     - _ToggleOutlineBaseMapBlend: 1
+    - _ToggleRenderQueueAuto: 1
     - _ToggleRimLight: 0
     - _ToggleRimLightHard: 0
     - _ToggleRimLightShadeColor: 0
@@ -211,13 +230,14 @@ Material:
     - _ToggleShadowReceive: 1
     - _ToggleShadowTerminatorSmooth: 1
     - _WorkflowMode: 1
-    - _ZWrite: 1
+    - _ZWrite: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _BaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBuiltInLightColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorHighLightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorMatCapMapColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorOutlineColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}
     - _ColorRimLightColor: {r: 1, g: 1, b: 1, a: 0.3}
     - _ColorRimLightShadeColor: {r: 1, g: 1, b: 1, a: 0.3}

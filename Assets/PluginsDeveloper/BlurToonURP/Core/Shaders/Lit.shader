@@ -58,6 +58,7 @@ Shader "BlurToonURP/Lit"
         //开关
         _ToggleNormalMapOnBaseMap ("NormalMap On BaseMap", Float) = 0 //开关 基础贴图
         _ToggleNormalMapOnHighLight ("NormalMap On HighLight", Float) = 0 //开关 高光
+        _ToggleNormalMapOnMatCap ("NormalMap On MatCap", Float) = 0 //开关 材质捕获
         //（边缘光的法线来源已改为边缘光面板中的专属配置 _FloatRimLightNormalSource，此处不再共用开关）
 
 
@@ -103,7 +104,22 @@ Shader "BlurToonURP/Lit"
         //遮罩贴图
         _TexRimLightMaskMap ("RimLight MaskMap", 2D) = "white" {} //遮罩贴图
         _FloatRimLightMaskMapIntensity ("RimLight MaskMap Intensity", Range(-1, 1)) = 0 //遮罩贴图 强度
-        
+
+
+        //----------- MatCap 材质捕获 -----------
+        _ToggleMatCap ("MatCap Toggle", Float ) = 0 //材质捕获开关 ●仅用于记录 设置关键词开启
+        _TexMatCapMap ("MatCapMap", 2D) = "black" {} //材质捕获贴图
+        [HDR]_ColorMatCapMapColor ("MatCapMap Color", Color) = (1,1,1,1) //材质捕获 颜色
+        _FloatMatCapColorBlend ("MatCap ColorBlend", Float ) = 1 //颜色混合模式 0=Additive 1=Multiply 2=Lerp ●记录 驱动关键词
+        _FloatMatCapColorBlendIntensity ("MatCap ColorBlend Intensity", Range(0, 1)) = 1 //颜色混合强度
+        _FloatMatCapRotate ("MatCap Rotate", Range(-1, 1)) = 0 //旋转
+        //阴影遮罩
+        _ToggleMatCapShadowMask ("MatCap ShadowMask Toggle", Float ) = 0 //开关 阴影遮罩
+        _FloatMatCapShadowMaskIntensity ("MatCap ShadowMask Intensity", Range(0, 1)) = 0 //阴影遮罩强度
+        //遮罩贴图
+        _TexMatCapMaskMap ("MatCap MaskMap", 2D) = "white" {} //遮罩贴图
+        _FloatMatCapMaskMapIntensity ("MatCap MaskMap Intensity", Range(-1, 1)) = 0 //遮罩贴图强度
+
         //----------- Light 光照设置 -----------
         _FloatRealtimeLightIntensity ("Realtime Light Intensity", Range(0, 10)) = 5 //实时光照强度
         _FloatEnvLightIntensity ("Environment Light Intensity", Range(0, 10)) = 2 //环境光照强度
@@ -131,6 +147,7 @@ Shader "BlurToonURP/Lit"
         _GlobalLightRimLightShadeMixedIntensity ("GlobalLight RimLightShade Mixed Intensity", Range(0.001, 1)) = 0.5//边缘光暗部和光照颜色的混合强度 0-1
         _ToggleGlobalLightOutline ("GlobalLight Outline Toggle", Float) = 1 //描边
         _GlobalLightOutlineMixedIntensity ("GlobalLight Outline Mixed Intensity", Range(0.001, 1)) = 0.5//描边和光照颜色的混合强度 0-1
+        _ToggleGlobalLightMatCapMap ("GlobalLight MatCapMap Toggle", Float) = 1 //材质捕获
         
         //阴影设置
         _ToggleShadowCaster ("ShadowCaster Toggle", Float ) = 1 //开关 阴影投射 ●仅用于记录 设置Pass开启
@@ -212,6 +229,9 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _RIMLIGHT_SHADEMASK_ON
             #pragma shader_feature_local _RIMLIGHT_SHADEMASK_COLOR_ON
             #pragma shader_feature_local _RIMLIGHT_MASKMAP_ON
+            //材质捕获
+            #pragma shader_feature_local _MATCAP_ON
+            #pragma shader_feature_local _ _MATCAP_COLORBLEND_MULTIPLY _MATCAP_COLORBLEND_LERP //无=Additive / 乘算 / 插值
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -275,8 +295,16 @@ Shader "BlurToonURP/Lit"
             TEXTURE2D(_TexHighLightMaskMap); SAMPLER(sampler_TexHighLightMaskMap);
             #endif
 
+            //材质捕获贴图 & 遮罩贴图
+            #if defined(_MATCAP_ON)
+            TEXTURE2D(_TexMatCapMap); SAMPLER(sampler_TexMatCapMap);
+            TEXTURE2D(_TexMatCapMaskMap); SAMPLER(sampler_TexMatCapMaskMap);
+            #endif
+
             //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
             #include "LitInput.hlsl"
+            //公共函数库（RotateUV 等）
+            #include "BlurFunction.hlsl"
             
             //顶点着色器
             Varyings vert(Attributes IN)
@@ -585,7 +613,45 @@ Shader "BlurToonURP/Lit"
                 #endif
                 //-------- RimLight 边缘光 -------- End
 
-                
+
+                //-------- MatCap 材质捕获 -------- Start
+                #if defined(_MATCAP_ON)
+                //根据开关使用顶点法线或法线贴图法线
+                float3 normalDirOnMatCap = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnMatCap);
+                //法线转换到观察空间得到 MatCap 采样 UV（-1~1 映射到 0~1）
+                float2 uvMatCap = mul(UNITY_MATRIX_V, float4(normalDirOnMatCap, 1)).xy;
+                uvMatCap = uvMatCap * 0.5 + 0.5;
+                //UV 旋转
+                uvMatCap = RotateUV(uvMatCap, _FloatMatCapRotate * 3.141592654, float2(0.5, 0.5));
+                //MatCap 贴图采样 × 自定义色（HDR）
+                half3 colorMatCapMap = SAMPLE_TEXTURE2D(_TexMatCapMap, sampler_TexMatCapMap, TRANSFORM_TEX(uvMatCap, _TexMatCapMap)).rgb;
+                colorMatCapMap *= _ColorMatCapMapColor.rgb * _ColorMatCapMapColor.a;
+
+                //受光照影响 开关
+                colorMatCapMap = lerp(colorMatCapMap, colorMatCapMap * colorLightBlend, _ToggleGlobalLightMatCapMap);
+
+                //阴影遮罩：暗部（lightIntensityShade1）处按强度压暗，使 MatCap 在阴影里变暗
+                float matcapShadowMaskIntensity = (1 - lightIntensityShade1) + (lightIntensityShade1 * (1 - _FloatMatCapShadowMaskIntensity));
+                colorMatCapMap = lerp(colorMatCapMap, colorMatCapMap * matcapShadowMaskIntensity, _ToggleMatCapShadowMask);
+
+                //颜色混合模式：Additive（默认无关键词）/ Multiply / Lerp
+                half3 colorMatCapFinal;
+                #if defined(_MATCAP_COLORBLEND_MULTIPLY)
+                colorMatCapFinal = lerp(colorFinalBlend, colorFinalBlend * colorMatCapMap, _FloatMatCapColorBlendIntensity);
+                #elif defined(_MATCAP_COLORBLEND_LERP)
+                colorMatCapFinal = lerp(colorFinalBlend, colorMatCapMap, _FloatMatCapColorBlendIntensity);
+                #else
+                colorMatCapFinal = colorFinalBlend + colorMatCapMap * _FloatMatCapColorBlendIntensity;
+                #endif
+
+                //遮罩贴图：按遮罩强度（可偏移）把 MatCap 结果混合回最终颜色
+                float matCapMaskIntensity = SAMPLE_TEXTURE2D(_TexMatCapMaskMap, sampler_TexMatCapMaskMap, TRANSFORM_TEX(uv, _TexMatCapMaskMap)).r;
+                matCapMaskIntensity = saturate(matCapMaskIntensity + _FloatMatCapMaskMapIntensity);
+                colorFinalBlend = lerp(colorFinalBlend, colorMatCapFinal, matCapMaskIntensity);
+                #endif
+                //-------- MatCap 材质捕获 -------- End
+
+
                 //最终Alpha：默认取基础贴图Alpha；裁剪-透明度模式下改用裁剪值以呈现溶解淡出（仅 Transparent 表面可见）
                 half alphaFinal = colorBaseMap.a;
                 #if defined(_CLIP_ALPHA)
