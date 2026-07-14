@@ -14,7 +14,6 @@ Material:
   m_ValidKeywords:
   - _ADDLIGHT_ON
   - _BASEMAP_SHADE_THRESHOLDMAP_ON
-  - _EMISSIVE_ON
   - _HIGHLIGHT_ON
   - _MATCAP_ON
   - _OUTLINE_ON
@@ -80,6 +79,10 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _TexEmissiveMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexHighLightMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -157,6 +160,7 @@ Material:
     - _FloatHighLightBlur: 0.1
     - _FloatHighLightIntensity: 0.5
     - _FloatHighLightMaskMapIntensity: 1
+    - _FloatHighLightShadowMaskIntensity: 0
     - _FloatHighLightSize: 0.5
     - _FloatMatCapColorBlend: 0
     - _FloatMatCapColorBlendIntensity: 1
@@ -213,7 +217,7 @@ Material:
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
     - _ToggleClipTransBaseMapAlpha: 0
-    - _ToggleEmissive: 1
+    - _ToggleEmissive: 0
     - _ToggleEmissiveAnim: 0
     - _ToggleEmissiveAnimPingpong: 0
     - _ToggleEmissiveChangeColor: 0
@@ -221,12 +225,15 @@ Material:
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
+    - _ToggleGlobalLightHighLight: 1
     - _ToggleGlobalLightMatCapMap: 1
     - _ToggleGlobalLightOutline: 1
     - _ToggleGlobalLightRimLight: 1
     - _ToggleGlobalLightRimLightShade: 1
     - _ToggleHighLight: 1
+    - _ToggleHighLightShadowMask: 0
     - _ToggleLightHorLockBaseMap: 0
+    - _ToggleLightHorLockHighLight: 0
     - _ToggleLightHorLockRimLight: 0
     - _ToggleMatCap: 1
     - _ToggleMatCapShadowMask: 0

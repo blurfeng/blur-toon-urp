@@ -76,10 +76,14 @@ half _ToggleNormalMapOnEmissive; //开关 自发光（视角变化颜色）
 
 //-------- HighLight 镜面高光 --------
 //（_ToggleHighLight 仅用于记录并驱动关键词 _HIGHLIGHT_ON，HLSL 不读取，故不在此声明）
+float4 _TexHighLightMap_ST; //高光贴图 ST
 half4 _ColorHighLightColor; //高光颜色
 half _FloatHighLightIntensity; //高光强度
 half _FloatHighLightSize; //高光大小（范围）
 half _FloatHighLightBlur; //高光边缘羽化
+//阴影遮罩
+half _ToggleHighLightShadowMask; //开关 阴影遮罩
+half _FloatHighLightShadowMaskIntensity; //阴影遮罩强度
 float4 _TexHighLightMaskMap_ST; //高光遮罩贴图 ST
 half _FloatHighLightMaskMapIntensity; //高光遮罩贴图 强度
 
@@ -160,6 +164,7 @@ half _ToggleGlobalLightBaseShade1; //暗部1
 half _GlobalLightBaseShade1MixedIntensity; //暗部1和光照颜色的混合强度 0-1
 half _ToggleGlobalLightBaseShade2; //暗部2
 half _GlobalLightBaseShade2MixedIntensity; //暗部2和光照颜色的混合强度 0-1
+half _ToggleGlobalLightHighLight; //高光（简单开关，不带混合强度，与 AleToon 一致）
 half _ToggleGlobalLightRimLight; //边缘光
 half _GlobalLightRimLightMixedIntensity; //边缘光和光照颜色的混合强度 0-1
 half _ToggleGlobalLightRimLightShade; //边缘光暗部
@@ -185,6 +190,7 @@ half _FloatBuiltInLightColorBlend; //内置光照颜色 混合强度
 
 //光照水平方向锁定
 half _ToggleLightHorLockBaseMap; //光照水平锁定 基础贴图
+half _ToggleLightHorLockHighLight; //光照水平锁定 高光
 half _ToggleLightHorLockRimLight; //光照水平锁定 边缘光
 
 

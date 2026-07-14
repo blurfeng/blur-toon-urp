@@ -437,6 +437,8 @@ namespace BlurToonURP.EditorGUIx
         #endregion
 
         #region HighLight 镜面高光
+        private static readonly GUIContent ContentHighLightMap = new GUIContent("高光贴图", "高光基础色 = 贴图RGB(sRGB) × 颜色(HDR)。默认白=纯色高光；可用贴图做彩色/图案高光。");
+        private static readonly GUIContent ContentHighLightShadowMask = new GUIContent("阴影遮罩", "高光在暗部（暗部1区域）是否受阴影影响而压暗，避免阴影里出现不自然高光。");
         private static readonly GUIContent ContentHighLightMaskTex = new GUIContent("遮罩贴图", "在遮罩贴图中绘制高光的分布与强度（采样R通道），uv坐标与基础贴图相同。");
 
         /// <summary>
@@ -462,14 +464,26 @@ namespace BlurToonURP.EditorGUIx
                 return;
 
             EditorGUIx.LabelItem("高光 设置");
-            //条目 颜色
-            MaterialEditor.ColorProperty(GetMaterialProperty("_ColorHighLightColor"), "颜色");
+            //条目 高光贴图 & 颜色（贴图RGB调制高光色，默认白=纯色高光）
+            var matPropTexHighLight = GetMaterialProperty("_TexHighLightMap");
+            MaterialEditor.TexturePropertySingleLine(ContentHighLightMap, matPropTexHighLight, GetMaterialProperty("_ColorHighLightColor"));
+            MaterialEditor.TextureScaleOffsetProperty(matPropTexHighLight);
             //条目 强度
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightIntensity"), "强度");
             //条目 大小（范围）
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightSize"), "大小");
-            //条目 边缘羽化
+            //条目 边缘羽化（0≈色阶硬边，大=柔边；连续覆盖“色阶↔柔边”）
             MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightBlur"), "边缘羽化");
+
+            //条目 阴影遮罩
+            var matPropToggleHLShadowMask = GetMaterialProperty("_ToggleHighLightShadowMask");
+            EditorGUIx.SwitchButton(ContentHighLightShadowMask, matPropToggleHLShadowMask);
+            if (matPropToggleHLShadowMask.floatValue.Equals(1))
+            {
+                EditorGUI.indentLevel++;
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatHighLightShadowMaskIntensity"), "| 阴影遮罩强度");
+                EditorGUI.indentLevel--;
+            }
             EditorGUILayout.Space();
 
             //子面板 遮罩贴图
@@ -1025,7 +1039,10 @@ namespace BlurToonURP.EditorGUIx
             this.SwitchButtonAndSubFloat(
                 "暗部贴图2", GetMaterialProperty("_ToggleGlobalLightBaseShade2"),
                 "强度", GetMaterialProperty("_GlobalLightBaseShade2MixedIntensity"));
-            
+
+            //高光（简单开关，不带混合强度，与 AleToon 一致）
+            EditorGUIx.SwitchButton("高光", GetMaterialProperty("_ToggleGlobalLightHighLight"));
+
             this.SwitchButtonAndSubFloat(
                 "边缘光", GetMaterialProperty("_ToggleGlobalLightRimLight"),
                 "强度", GetMaterialProperty("_GlobalLightRimLightMixedIntensity"));
@@ -1128,6 +1145,7 @@ namespace BlurToonURP.EditorGUIx
             //光照方向锁定
             EditorGUIx.LabelItem(ContentLightHorLock);
             EditorGUIx.SwitchButton("基础贴图", GetMaterialProperty("_ToggleLightHorLockBaseMap"));
+            EditorGUIx.SwitchButton("高光", GetMaterialProperty("_ToggleLightHorLockHighLight"));
             EditorGUIx.SwitchButton("边缘光暗部遮罩", GetMaterialProperty("_ToggleLightHorLockRimLight"));
             EditorGUILayout.Space();
         }
