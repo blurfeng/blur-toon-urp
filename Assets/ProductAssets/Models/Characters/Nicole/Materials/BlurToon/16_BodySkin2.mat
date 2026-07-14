@@ -167,7 +167,7 @@ Material:
     - _FloatRimLightShadeColorIntensity: 0.9
     - _FloatRimLightShadeMaskIntensity: 1
     - _FloatRimLightShadeMaskOffset: 0
-    - _FloatShade1Shade2Blur: 0.01
+    - _FloatShade1Shade2Blur: 2.3
     - _FloatShade1Shade2Step: 0.2
     - _FloatShadeThresholdMapIntensity: 0.5
     - _FloatShadowIntensity: 0
