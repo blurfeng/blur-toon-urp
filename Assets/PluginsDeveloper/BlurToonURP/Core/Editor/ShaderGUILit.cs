@@ -626,6 +626,7 @@ namespace BlurToonURP.EditorGUIx
 
         private static readonly GUIContent ContentGlobalLightShadowCaster = new GUIContent("阴影投射", "向场景投射阴影，可通过“透明度裁切阈值”来调整半透明物体的投影效果。");
         private static readonly GUIContent ContentGlobalLightShadowReceive = new GUIContent("阴影接收", "接收场景的阴影，可通过“强度调整”来改变阴影的最终效果。");
+        private static readonly GUIContent ContentShadowTerminatorSmooth = new GUIContent("交界柔化", "关=直接使用阴影图(原始行为)：投射阴影覆盖全部区域，但交界可能有阴影图分辨率锯齿。\n开=几何平滑自阴影与阴影图取“较暗者”融合：自阴影与接收阴影完全融合、不产生亮缝；交界由平滑几何主导(消锯齿)，更暗的投射阴影仍能穿透。“柔化值”越大交界越平滑，越小交界越锐、投射阴影越贴交界。");
 
         /// <summary>
         /// 子界面 阴影接收
@@ -639,6 +640,10 @@ namespace BlurToonURP.EditorGUIx
             this.SwitchButtonAndSubFloat(
                 ContentGlobalLightShadowReceive, GetMaterialProperty("_ToggleShadowReceive"),
                 "强度", GetMaterialProperty("_FloatShadowIntensity"));
+            //条目 交界柔化开关 + 柔化值（关=直接用阴影图/原始行为；开=几何平滑自阴影与阴影图min融合，消锯齿且无亮缝）
+            this.SwitchButtonAndSubFloat(
+                ContentShadowTerminatorSmooth, GetMaterialProperty("_ToggleShadowTerminatorSmooth"),
+                "柔化值", GetMaterialProperty("_FloatShadowTerminatorSmooth"));
             EditorGUILayout.Space();
         }
         #endregion

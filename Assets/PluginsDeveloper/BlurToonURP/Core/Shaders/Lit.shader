@@ -118,6 +118,13 @@ Shader "BlurToonURP/Lit"
         _ToggleShadowCaster ("ShadowCaster Toggle", Float ) = 1 //开关 阴影投射 ●仅用于记录 设置Pass开启
         _ToggleShadowReceive ("ShadowReceive Toggle", Float ) = 1 //开关 阴影接收
         _FloatShadowIntensity ("Shadow Intensity", Range(-1, 1)) = 0 //阴影强度
+        //明暗交界处理模式(默认关)：
+        // 关(0)=直接使用阴影图(原始行为)：投射阴影覆盖包含交界在内的全部区域，但交界可能出现阴影图分辨率导致的锯齿。
+        // 开(1)=交界柔化：把几何(NdotL)平滑自阴影包络 与 阴影图 取“较暗者(min)”融合——两条单调曲线取min仍单调，绝不产生亮缝；
+        //        交界由平滑几何主导(消锯齿)、更暗的投射阴影仍能穿透、背光侧照常压暗。柔化程度由“柔化值”控制。
+        _ToggleShadowTerminatorSmooth ("Shadow Terminator Smooth Toggle", Float) = 0
+        //交界柔化值(仅交界柔化开启时生效)：几何平滑自阴影包络的过渡半宽。越大交界越平滑(几何主导范围越大)，越小交界越锐、投射阴影越贴近交界。任何值都不会出现亮缝。
+        _FloatShadowTerminatorSmooth ("Shadow Terminator Smooth", Range(0.02, 0.5)) = 0.1
         
         //内置光照
         _ToggleBuiltInLight ("BuiltInLight Toggle", Float ) = 0 //开关 内置光照
@@ -373,9 +380,20 @@ Shader "BlurToonURP/Lit"
                 lightDirOnBaseMap.y = lerp(lightDirOnBaseMap.y, 0, _ToggleLightHorLockBaseMap); //光照水平方向锁定
                 //根据开关，使用顶点法线或法线贴图法线
                 float3 normalDirOnBaseMap = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnBaseMap);
-                float halfLambert = dot(normalDirOnBaseMap, lightDirOnBaseMap) * 0.5 + 0.5; //半兰伯特
+                float NdotL = dot(normalDirOnBaseMap, lightDirOnBaseMap); //兰伯特余弦 [-1,1]
+                float halfLambert = NdotL * 0.5 + 0.5; //半兰伯特 [0,1]
                 //根据开关，计算阴影的影响
-                halfLambert = lerp(halfLambert, halfLambert * shadowAttenuation, _ToggleShadowReceive);
+                //明暗交界有两种处理模式(_ToggleShadowTerminatorSmooth)：
+                // 直接模式(0，默认)：直接用阴影图。投射阴影覆盖包含交界在内的全部区域；缺点是交界会暴露阴影图分辨率的锯齿。
+                // 柔化模式(1)：几何(NdotL)平滑自阴影包络 与 阴影图 取“较暗者(min)”融合。
+                //   两条单调递增曲线取 min 仍单调递增 → 不会出现亮脊/亮缝(自阴影与接收阴影完全融合为一条连续的暗)；
+                //   交界由平滑几何包络主导(消锯齿，柔化值越大主导范围越大越平滑)，真正更暗的投射阴影仍能穿透显示，背光侧照常压暗。
+                float terminatorSmooth = max(_FloatShadowTerminatorSmooth, 1e-4);
+                float selfShadowSmooth = smoothstep(-terminatorSmooth, terminatorSmooth, NdotL); //几何平滑自阴影包络 0=背光(暗) 1=受光(亮)
+                float shadowReceiveSmooth = min(selfShadowSmooth, shadowAttenuation);            //取较暗者：结果单调 → 无亮缝，自阴影/接收阴影融合为一
+                //按模式在“直接(原始，直接用阴影图) / 柔化(min融合)”之间选择
+                float shadowReceive = lerp(shadowAttenuation, shadowReceiveSmooth, _ToggleShadowTerminatorSmooth);
+                halfLambert = lerp(halfLambert, halfLambert * shadowReceive, _ToggleShadowReceive);
 
                 //暗部阈值贴图
                 #if defined(_BASEMAP_SHADE_THRESHOLDMAP_ON)
@@ -385,12 +403,18 @@ Shader "BlurToonURP/Lit"
                 halfLambert = saturate(halfLambert - shadeThresholdValue);
                 #endif
                 
+                //色阶过渡的屏幕空间抗锯齿：
+                //过渡带宽度(模糊)是以 halfLambert 为单位的固定值。当过渡位置(Step)落在 halfLambert 屏幕梯度陡峭处
+                //(如球体轮廓附近/掠射角/低模面片边界)时，过渡带在屏幕上会塌缩到亚像素宽度而形成硬边锯齿。
+                //因此用 fwidth(halfLambert)(约等于相邻像素间 halfLambert 的变化量)作为过渡带的最小宽度，
+                //保证过渡至少覆盖约1个像素而被抗锯齿；美术设置的模糊更大时按其原值，外观不变。
+                float halfLambertFwidth = fwidth(halfLambert);
                 //暗部1
-                _FloatBrightShade1Blur *= 0.1; //将0-10的设置值映射到0-1
-                float lightIntensityShade1 = 1 - saturate(1 + (halfLambert - _FloatBrightShade1Step) / _FloatBrightShade1Blur);
+                float blurBrightShade1 = max(_FloatBrightShade1Blur * 0.1, halfLambertFwidth); //模糊映射值与屏幕约1像素梯度取较大者
+                float lightIntensityShade1 = 1 - saturate(1 + (halfLambert - _FloatBrightShade1Step) / blurBrightShade1);
                 //暗部2
-                _FloatShade1Shade2Blur *= 0.05; //将0-10的设置值映射到0-0.5
-                float lightIntensityShade2 = 1 - saturate(1 + (halfLambert - _FloatShade1Shade2Step) / _FloatShade1Shade2Blur);
+                float blurShade1Shade2 = max(_FloatShade1Shade2Blur * 0.05, halfLambertFwidth);
+                float lightIntensityShade2 = 1 - saturate(1 + (halfLambert - _FloatShade1Shade2Step) / blurShade1Shade2);
                 
                 //混合颜色
                 float3 colorFinalBlend = lerp(colorBaseMapFinal, lerp(colorBaseMapShade1, colorBaseMapShade2, lightIntensityShade2), lightIntensityShade1);

@@ -114,6 +114,8 @@ half _GlobalLightOutlineMixedIntensity; //描边和光照颜色的混合强度 0
 //阴影设置
 half _ToggleShadowReceive; //开关 阴影接收
 half _FloatShadowIntensity; //阴影接收强度
+half _ToggleShadowTerminatorSmooth; //开关 交界柔化(0=直接用阴影图/原始 1=几何平滑自阴影与阴影图min融合，消锯齿且无亮缝)
+half _FloatShadowTerminatorSmooth; //交界柔化值（几何平滑自阴影包络的过渡半宽，越大交界越平滑）
 
 //内置光照
 float _FloatBuiltInLightAxisX; //光照方向X轴

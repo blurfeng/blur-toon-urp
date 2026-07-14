@@ -168,6 +168,7 @@ Material:
     - _FloatShade1Shade2Step: 0.2
     - _FloatShadeThresholdMapIntensity: 0.5
     - _FloatShadowIntensity: 0
+    - _FloatShadowTerminatorSmooth: 0.1
     - _GlobalLightBaseMapMixedIntensity: 0.5
     - _GlobalLightBaseShade1MixedIntensity: 0.5
     - _GlobalLightBaseShade2MixedIntensity: 0.5
@@ -220,6 +221,7 @@ Material:
     - _ToggleShadeThresholdMap: 0
     - _ToggleShadowCaster: 1
     - _ToggleShadowReceive: 1
+    - _ToggleShadowTerminatorSmooth: 0
     - _UVSec: 0
     - _WorkflowMode: 1
     - _ZWrite: 0
