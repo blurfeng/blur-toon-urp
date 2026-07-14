@@ -13,7 +13,6 @@ Material:
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - _ALPHATEST_ON
-  - _OUTLINE_ON
   - _OUTLINE_WIDTH_SAME
   - _RIMLIGHT_ON
   - _RIMLIGHT_SHADEMASK_COLOR_ON
@@ -26,7 +25,8 @@ Material:
   m_CustomRenderQueue: 2450
   stringTagMap:
     RenderType: TransparentCutout
-  disabledShaderPasses: []
+  disabledShaderPasses:
+  - Outline
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3

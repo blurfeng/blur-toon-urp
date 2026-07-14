@@ -196,6 +196,7 @@ Material:
     - _TessExtrusionAmount: 0
     - _TessPhongStrength: 0.5
     - _ToggleAddLight: 1
+    - _ToggleAlphaClip: 0
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
     - _ToggleGlobalLightBaseMap: 1
