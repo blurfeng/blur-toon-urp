@@ -2,6 +2,24 @@ Shader "BlurToonURP/Lit"
 {
     Properties
     {
+        //----------- Basic 基础设置（渲染面 / 裁剪 / 模板测试）-----------
+        //渲染面：值即 Cull 模式 0=Off(双面) 1=Front(渲染反面) 2=Back(渲染正面)，由编辑器下拉设置
+        _IntRenderFaceType ("RenderFace Type", Float) = 2 //渲染面 0=Both 1=Back 2=Front
+        //渲染队列
+        _ToggleRenderQueueAuto ("RenderQueue Auto", Float) = 1 //渲染队列自动设置 ●记录 编辑器执行
+        //裁剪 Clip（溶解，与下方“透明度裁切”相互独立）
+        _IntClipType ("Clip Type", Float) = 0 //裁剪类型 0=Off 1=Dither 2=Alpha ●记录 驱动关键词
+        _TexClipMaskMap ("Clip MaskMap", 2D) = "white" {} //裁剪遮罩贴图
+        _FloatClipIntensity ("Clip Intensity", Range(0, 1)) = 0 //挖孔裁剪强度
+        _FloatClipTransIntensity ("ClipTrans Intensity", Range(-1, 1)) = 0 //透明度裁剪强度
+        _ToggleClipTransBaseMapAlpha ("ClipTrans BaseMapAlpha", Float) = 0 //基础贴图A通道生效
+        //模板测试 Stencil（同组序号的材质互相影响）
+        _IntStencilType ("Stencil Type", Float) = 0 //模板类型 0=Off 1=Discard 2=Reserve ●记录 驱动预设
+        _FloatStencilNum ("Stencil No", Float) = 1 //模板组序号（Ref）
+        _FloatStencilComp ("Stencil Comparison", Float) = 0 //比较规则（CompareFunction）
+        _FloatStencilPass ("Stencil Pass Op", Float) = 0 //测试通过写入规则（StencilOp）
+        _FloatStencilFail ("Stencil Fail Op", Float) = 0 //测试失败写入规则（StencilOp）
+
         //----------- BaseMap 基础纹理 -----------
         _BaseMap("Base Map", 2D) = "white" {} //基础贴图
         [HDR]_BaseColor("Base Color", Color) = (1, 1, 1, 1)
@@ -159,6 +177,16 @@ Shader "BlurToonURP/Lit"
             //混合与深度写入由“表面类型”驱动（Opaque=One/Zero/ZWrite On，Transparent=SrcAlpha/OneMinusSrcAlpha/ZWrite Off），编辑器设置对应属性值
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
+            //渲染面：由“基础设置-渲染面”驱动（0=Off双面 1=Front渲染反面 2=Back渲染正面）
+            Cull [_IntRenderFaceType]
+            //模板测试：由“基础设置-模板测试”驱动，同组序号材质互相影响（Comp/Pass/Fail 按模板类型预设）
+            Stencil
+            {
+                Ref [_FloatStencilNum]
+                Comp [_FloatStencilComp]
+                Pass [_FloatStencilPass]
+                Fail [_FloatStencilFail]
+            }
 
             HLSLPROGRAM
 
@@ -172,6 +200,7 @@ Shader "BlurToonURP/Lit"
 
             // BlurToonURP Keywords
             #pragma shader_feature_local _ALPHATEST_ON //透明度裁切
+            #pragma shader_feature_local _ _CLIP_DITHER _CLIP_ALPHA //裁剪（溶解）：无=关闭 / 挖孔 / 透明度
             #pragma shader_feature_local _BASEMAP_SHADE_THRESHOLDMAP_ON //暗部阈值贴图
 			#pragma shader_feature_local _ADDLIGHT_ON // 附加光照
             #pragma shader_feature_local _BUILTINLIGHT_ON // 内置光照
@@ -227,6 +256,11 @@ Shader "BlurToonURP/Lit"
             };
 
             //定义的字段属性
+            //裁剪遮罩贴图（仅挖孔/透明度模式启用）
+            #if defined(_CLIP_DITHER) || defined(_CLIP_ALPHA)
+            TEXTURE2D(_TexClipMaskMap); SAMPLER(sampler_TexClipMaskMap); //裁剪遮罩贴图
+            #endif
+
             //暗部阈值贴图
             #if defined(_BASEMAP_SHADE_THRESHOLDMAP_ON)
             TEXTURE2D(_TexShadeThresholdMap); SAMPLER(sampler_TexShadeThresholdMap); //暗部阈值贴图
@@ -288,6 +322,20 @@ Shader "BlurToonURP/Lit"
                 #if defined(_ALPHATEST_ON)
                 clip(colorBaseMap.a - _Cutoff);
                 #endif
+
+                //-------- Clip 裁剪（溶解）-------- Start
+                //与“透明度裁切”相互独立：从裁剪遮罩贴图 R 通道采样强度，做挖孔剔除或透明度淡出。
+                #if defined(_CLIP_DITHER)
+                //挖孔：低于阈值的像素直接剔除
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(uv, _TexClipMaskMap)).r;
+                clip(clipMask - _FloatClipIntensity);
+                #elif defined(_CLIP_ALPHA)
+                //透明度：按遮罩（可叠加基础贴图A通道）计算裁剪值，剔除并用于最终Alpha（Transparent 表面呈现淡出）
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(uv, _TexClipMaskMap)).r;
+                half clipAlpha = lerp(clipMask, clipMask * colorBaseMap.a, _ToggleClipTransBaseMapAlpha) - _FloatClipTransIntensity;
+                clip(clipAlpha);
+                #endif
+                //-------- Clip 裁剪（溶解）-------- End
 
                 float3 viewDirWS = GetWorldSpaceNormalizeViewDir(IN.positionWS); //观察方向
                 float3 normalDirWS = IN.normalWS; //法线方向
@@ -538,14 +586,19 @@ Shader "BlurToonURP/Lit"
                 //-------- RimLight 边缘光 -------- End
 
                 
-                half4 colorFinal = half4(colorFinalBlend, colorBaseMap.a);
-                
+                //最终Alpha：默认取基础贴图Alpha；裁剪-透明度模式下改用裁剪值以呈现溶解淡出（仅 Transparent 表面可见）
+                half alphaFinal = colorBaseMap.a;
+                #if defined(_CLIP_ALPHA)
+                alphaFinal = saturate(clipAlpha);
+                #endif
+                half4 colorFinal = half4(colorFinalBlend, alphaFinal);
+
                 return colorFinal;
             }
 
             ENDHLSL
         }
-        
+
         //阴影投射
         //向场景投射阴影。由编辑器"阴影设置"中的"阴影投射"开关(SetShaderPassEnabled)控制此Pass的启用。
         Pass
@@ -557,7 +610,8 @@ Shader "BlurToonURP/Lit"
             ZWrite On
             ZTest LEqual
             ColorMask 0
-            Cull Back
+            //渲染面与本体一致，保证投影轮廓正确
+            Cull [_IntRenderFaceType]
 
             HLSLPROGRAM
 
@@ -674,7 +728,8 @@ Shader "BlurToonURP/Lit"
             //只写入深度，颜色仅写入R通道
             ZWrite On
             ColorMask R
-            Cull Back
+            //渲染面与本体一致
+            Cull [_IntRenderFaceType]
 
             HLSLPROGRAM
 
@@ -753,7 +808,8 @@ Shader "BlurToonURP/Lit"
             Tags {"LightMode" = "DepthNormals"}
 
             ZWrite On
-            Cull Back
+            //渲染面与本体一致
+            Cull [_IntRenderFaceType]
 
             HLSLPROGRAM
 
@@ -842,7 +898,15 @@ Shader "BlurToonURP/Lit"
             ZWrite On
             Cull Front
             Blend SrcAlpha OneMinusSrcAlpha
-            
+            //模板测试：与本体一致，使描边也参与同组遮罩
+            Stencil
+            {
+                Ref [_FloatStencilNum]
+                Comp [_FloatStencilComp]
+                Pass [_FloatStencilPass]
+                Fail [_FloatStencilFail]
+            }
+
             HLSLPROGRAM
 
             // Keywords ------------------------------------- Start
@@ -859,6 +923,7 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _OUTLINE_WIDTH_SAME _OUTLINE_WIDTH_SCALING // 外描边类型
             #pragma shader_feature_local _OUTLINE_MAP_ON // 描边纹理贴图
             #pragma shader_feature_local _ALPHATEST_ON // 透明度裁切
+            #pragma shader_feature_local _ _CLIP_DITHER _CLIP_ALPHA // 裁剪（溶解）：无=关闭 / 挖孔 / 透明度
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -876,6 +941,11 @@ Shader "BlurToonURP/Lit"
             //描边纹理贴图（描边专用纹理，用于给描边着色/图案，仅在指定贴图后启用关键词）
             #if defined(_OUTLINE_MAP_ON)
             TEXTURE2D(_TexOutlineMap); SAMPLER(sampler_TexOutlineMap);
+            #endif
+
+            //裁剪遮罩贴图（仅挖孔/透明度模式启用，使描边与本体同步溶解）
+            #if defined(_CLIP_DITHER) || defined(_CLIP_ALPHA)
+            TEXTURE2D(_TexClipMaskMap); SAMPLER(sampler_TexClipMaskMap);
             #endif
 
             //顶点着色器 输入数据结构
@@ -972,6 +1042,15 @@ Shader "BlurToonURP/Lit"
                 #if defined(_ALPHATEST_ON)
                 half alphaOutline = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, TRANSFORM_TEX(IN.uv, _BaseMap)).a * _BaseColor.a;
                 clip(alphaOutline - _Cutoff);
+                #endif
+
+                //裁剪（溶解）：与本体一致，溶解处不绘制描边（描边为硬剔除，不做透明淡出）
+                #if defined(_CLIP_DITHER)
+                half clipMaskOutline = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                clip(clipMaskOutline - _FloatClipIntensity);
+                #elif defined(_CLIP_ALPHA)
+                half clipMaskOutline = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                clip(clipMaskOutline - _FloatClipTransIntensity);
                 #endif
 
                 //外描边颜色和光照色混合

@@ -12,8 +12,8 @@ namespace BlurToonURP.EditorGUIx
             //Debug 功能区（仅编辑器，不影响正式流程），放在顶部
             MaterialDebugHighlight.OnInspectorGUI(Material);
 
+            EditorGUIx.FoldoutPanel("【基础设置 Basic】表面类型、渲染面、透明度裁切、裁剪、模板测试", PanelMainBasic);
             EditorGUIx.FoldoutPanel("【基础贴图 BaseMap】基础贴图及暗部贴图", PanelMainBasicMap);
-            EditorGUIx.FoldoutPanel("【表面类型 Surface】不透明/透明、透明度裁切", PanelMainSurface);
             EditorGUIx.FoldoutPanel("【法线贴图 NormalMap】强度、效果开关", PanelMainNormalMap);
             EditorGUIx.FoldoutPanel("【镜面高光 HighLight】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【外描边 Outline】粗细、颜色", PanelMainOutline);
@@ -91,14 +91,31 @@ namespace BlurToonURP.EditorGUIx
         }
         #endregion
 
-        #region Surface 表面类型 / 透明度裁切
+        #region Basic 基础设置（表面类型 / 渲染面 / 透明度裁切 / 裁剪 / 模板测试）
         private static readonly GUIContent ContentSurfaceType = new GUIContent("表面类型", "Opaque 不透明 / Transparent 透明（标准 Alpha 混合）。切换会自动设置混合模式、深度写入与渲染队列。");
+        private static readonly GUIContent ContentRenderFace = new GUIContent("渲染面", "Both 双面 / Back 反面 / Front 正面。作用于本体、阴影、深度等 Pass；描边固定渲染反面，不受此影响。");
         private static readonly GUIContent ContentAlphaClip = new GUIContent("透明度裁切", "按 基础贴图Alpha×基础色Alpha 与阈值裁切像素（Alpha Clip / Cutout）。在本体、描边、阴影、深度所有 Pass 生效。");
+        private static readonly GUIContent ContentRenderQueueAuto = new GUIContent("渲染队列自动", "开启时按 表面类型 / 透明度裁切 / 模板类型 自动设置渲染队列；关闭后可在下方手动指定。");
+        //裁剪 Clip（溶解）
+        private static readonly GUIContent ContentClipType = new GUIContent("裁剪类型", "Off 关闭 / Dither 挖孔（按遮罩剔除像素）/ Alpha 透明度（配合 Transparent 做溶解淡出）。与“透明度裁切”相互独立。");
+        private static readonly GUIContent ContentClipMap = new GUIContent("裁剪贴图", "从遮罩贴图 R 通道采样裁剪强度（0-1），UV 与基础贴图相同。");
+        private static readonly GUIContent ContentClipBaseMapAlpha = new GUIContent("基础贴图A通道生效", "把基础贴图 Alpha 叠加进裁剪计算（基础贴图为透明贴图时使用）。");
+        //模板测试 Stencil
+        private static readonly GUIContent ContentStencilType = new GUIContent("模板类型", "Off 关闭 / Discard 丢弃（同组遮罩处不绘制）/ Reserve 保留（写入遮罩，且先于丢弃渲染）。");
+        private static readonly GUIContent ContentStencilGroupNum = new GUIContent("模板组序号", "相同序号的材质球才会互相影响（0-255）。");
 
         /// <summary>
         /// 关键词 透明度裁切 开启
         /// </summary>
         private const string MatKeywordAlphaTest = "_ALPHATEST_ON";
+        /// <summary>
+        /// 关键词 裁剪 挖孔（无关键词=关闭）
+        /// </summary>
+        private const string MatKeywordClipDither = "_CLIP_DITHER";
+        /// <summary>
+        /// 关键词 裁剪 透明度
+        /// </summary>
+        private const string MatKeywordClipAlpha = "_CLIP_ALPHA";
 
         /// <summary>
         /// 表面类型
@@ -117,12 +134,78 @@ namespace BlurToonURP.EditorGUIx
         }
 
         /// <summary>
-        /// 主面板 表面类型 / 透明度裁切
+        /// 渲染面（枚举索引即 Cull 模式值：Both=0 Off、Back=1 Front、Front=2 Back）
         /// </summary>
-        private void PanelMainSurface()
+        private enum ERenderFace
+        {
+            /// <summary>
+            /// 双面（Cull Off）
+            /// </summary>
+            Both,
+
+            /// <summary>
+            /// 反面（Cull Front）
+            /// </summary>
+            Back,
+
+            /// <summary>
+            /// 正面（Cull Back）
+            /// </summary>
+            Front
+        }
+
+        /// <summary>
+        /// 裁剪类型（溶解）
+        /// </summary>
+        private enum EClipType
+        {
+            /// <summary>
+            /// 关闭
+            /// </summary>
+            Off,
+
+            /// <summary>
+            /// 挖孔
+            /// </summary>
+            Dither,
+
+            /// <summary>
+            /// 透明度
+            /// </summary>
+            Alpha
+        }
+
+        /// <summary>
+        /// 模板测试类型
+        /// </summary>
+        private enum EStencilType
+        {
+            /// <summary>
+            /// 关闭
+            /// </summary>
+            Off,
+
+            /// <summary>
+            /// 丢弃（同组遮罩处不绘制）
+            /// </summary>
+            Discard,
+
+            /// <summary>
+            /// 保留（写入遮罩，先于丢弃渲染）
+            /// </summary>
+            Reserve
+        }
+
+        /// <summary>
+        /// 主面板 基础设置（表面类型 / 渲染面 / 透明度裁切 / 裁剪 / 模板测试）
+        /// </summary>
+        private void PanelMainBasic()
         {
             //条目 表面类型
             EditorGUIx.DropdownEnum(ContentSurfaceType, GetMaterialProperty("_Surface"), typeof(ESurfaceType), MaterialEditor);
+
+            //条目 渲染面（Both/Back/Front，枚举索引即 Cull 模式值）
+            EditorGUIx.DropdownEnum(ContentRenderFace, GetMaterialProperty("_IntRenderFaceType"), typeof(ERenderFace), MaterialEditor);
 
             //条目 透明度裁切
             var matPropToggleAlphaClip = GetMaterialProperty("_ToggleAlphaClip");
@@ -136,9 +219,99 @@ namespace BlurToonURP.EditorGUIx
                 MaterialEditor.RangeProperty(GetMaterialProperty("_Cutoff"), "| 裁切阈值");
                 EditorGUI.indentLevel--;
             }
+            EditorGUILayout.Space();
 
-            //按“表面类型 + 是否裁切”设置各材质的混合因子/深度写入/渲染队列/渲染类型标签
+            //子面板 渲染队列
+            EditorGUIx.FoldoutPanel("渲染队列 RenderQueue", PanelSubRenderQueue, EditorGUIx.EFoldoutStyleType.Sub);
+            //子面板 裁剪 Clip（溶解）
+            EditorGUIx.FoldoutPanel("裁剪 Clip（溶解）", PanelSubClip, EditorGUIx.EFoldoutStyleType.Sub);
+            //子面板 模板测试 Stencil
+            EditorGUIx.FoldoutPanel("模板测试 Stencil", PanelSubStencil, EditorGUIx.EFoldoutStyleType.Sub);
+
+            //按“表面类型 + 是否裁切 + 模板类型”设置各材质的混合因子/深度写入/渲染队列/渲染类型标签
             ApplySurfaceType();
+            //按“模板类型”预设各材质的 Comp/Pass/Fail
+            ApplyStencil();
+        }
+
+        /// <summary>
+        /// 子面板 渲染队列：自动（按表面类型/裁切/模板推导）或手动指定
+        /// </summary>
+        private void PanelSubRenderQueue()
+        {
+            //条目 渲染队列自动开关
+            var matPropToggleAuto = GetMaterialProperty("_ToggleRenderQueueAuto");
+            EditorGUIx.SwitchButton(ContentRenderQueueAuto, matPropToggleAuto);
+
+            //自动时禁用手动输入；关闭自动后可手动指定（作用到全部选中材质）
+            EditorGUI.BeginDisabledGroup(matPropToggleAuto.floatValue.Equals(1));
+            EditorGUI.BeginChangeCheck();
+            int queue = EditorGUILayout.IntField("渲染队列", Material.renderQueue);
+            if (EditorGUI.EndChangeCheck())
+            {
+                foreach (var m in Materials)
+                    if (m != null) m.renderQueue = queue;
+            }
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.Space();
+        }
+
+        /// <summary>
+        /// 子面板 裁剪 Clip（溶解）：Off / 挖孔 / 透明度
+        /// </summary>
+        private void PanelSubClip()
+        {
+            //条目 裁剪类型
+            var matPropClipType = GetMaterialProperty("_IntClipType");
+            EditorGUIx.DropdownEnum(ContentClipType, matPropClipType, typeof(EClipType), MaterialEditor);
+            //多选编辑：按各材质自身类型同步关键词（两者都关=Off）
+            ApplyKeyword(MatKeywordClipDither, "_IntClipType", (float)EClipType.Dither);
+            ApplyKeyword(MatKeywordClipAlpha, "_IntClipType", (float)EClipType.Alpha);
+
+            //关闭时不显示详细设置
+            if (matPropClipType.floatValue.Equals((float)EClipType.Off))
+                return;
+
+            //条目 裁剪贴图
+            var matPropTexClip = GetMaterialProperty("_TexClipMaskMap");
+            MaterialEditor.TexturePropertySingleLine(ContentClipMap, matPropTexClip);
+            MaterialEditor.TextureScaleOffsetProperty(matPropTexClip);
+
+            if (matPropClipType.floatValue.Equals((float)EClipType.Dither))
+            {
+                //条目 挖孔强度
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatClipIntensity"), "裁剪强度");
+            }
+            else //Alpha
+            {
+                EditorGUIx.LabelItem(new GUIContent("透明度效果", "改变透明度的溶解，“表面类型”设为 Transparent 才会呈现透明淡出。"));
+                //条目 透明度强度
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatClipTransIntensity"), "透明强度");
+                //条目 基础贴图A通道生效
+                EditorGUIx.SwitchButton(ContentClipBaseMapAlpha, GetMaterialProperty("_ToggleClipTransBaseMapAlpha"));
+            }
+            EditorGUILayout.Space();
+        }
+
+        /// <summary>
+        /// 子面板 模板测试 Stencil：Off / 丢弃 / 保留
+        /// </summary>
+        private void PanelSubStencil()
+        {
+            EditorGUIx.LabelItem(new GUIContent("模板测试 : 丢弃、保留", "相同“模板组序号”的材质球才会互相影响。"));
+
+            //条目 模板类型（Comp/Pass/Fail 由 ApplyStencil() 按类型预设）
+            EditorGUIx.DropdownEnum(ContentStencilType, GetMaterialProperty("_IntStencilType"), typeof(EStencilType), MaterialEditor);
+
+            //条目 模板组序号（0-255，多选安全：MaterialProperty 会作用到全部选中材质）
+            var matPropStencilNum = GetMaterialProperty("_FloatStencilNum");
+            EditorGUI.showMixedValue = matPropStencilNum.hasMixedValue;
+            EditorGUI.BeginChangeCheck();
+            int num = EditorGUILayout.IntField(ContentStencilGroupNum, (int)matPropStencilNum.floatValue);
+            if (EditorGUI.EndChangeCheck())
+                matPropStencilNum.floatValue = Mathf.Clamp(num, 0, 255);
+            EditorGUI.showMixedValue = false;
+            EditorGUILayout.Space();
         }
 
         /// <summary>
@@ -155,6 +328,8 @@ namespace BlurToonURP.EditorGUIx
 
                 bool transparent = m.HasProperty("_Surface") && m.GetFloat("_Surface") >= 0.5f;
                 bool alphaClip = m.HasProperty("_ToggleAlphaClip") && m.GetFloat("_ToggleAlphaClip") >= 0.5f;
+                //渲染队列自动：关闭后保留用户手动设置的队列，不由此处覆盖
+                bool autoQueue = !m.HasProperty("_ToggleRenderQueueAuto") || m.GetFloat("_ToggleRenderQueueAuto") >= 0.5f;
 
                 int src, dst, zwrite, queue;
                 string renderType;
@@ -169,21 +344,69 @@ namespace BlurToonURP.EditorGUIx
                 }
                 else
                 {
-                    //不透明：不混合、写入深度；裁切时进入 AlphaTest 队列，否则 Geometry
+                    //不透明：不混合、写入深度
                     src = (int)UnityEngine.Rendering.BlendMode.One;
                     dst = (int)UnityEngine.Rendering.BlendMode.Zero;
                     zwrite = 1;
-                    queue = alphaClip
-                        ? (int)UnityEngine.Rendering.RenderQueue.AlphaTest
-                        : (int)UnityEngine.Rendering.RenderQueue.Geometry;
+                    //渲染队列：模板“保留(写入遮罩)”需先于“丢弃(按遮罩剔除)”渲染；其余按是否裁切进入 AlphaTest / Geometry
+                    int stencilType = m.HasProperty("_IntStencilType") ? (int)m.GetFloat("_IntStencilType") : 0;
+                    if (stencilType == (int)EStencilType.Reserve)
+                        queue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest - 1;
+                    else if (stencilType == (int)EStencilType.Discard)
+                        queue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                    else
+                        queue = alphaClip
+                            ? (int)UnityEngine.Rendering.RenderQueue.AlphaTest
+                            : (int)UnityEngine.Rendering.RenderQueue.Geometry;
                     renderType = alphaClip ? "TransparentCutout" : "Opaque";
                 }
 
                 if (!Mathf.Approximately(m.GetFloat("_SrcBlend"), src)) m.SetFloat("_SrcBlend", src);
                 if (!Mathf.Approximately(m.GetFloat("_DstBlend"), dst)) m.SetFloat("_DstBlend", dst);
                 if (!Mathf.Approximately(m.GetFloat("_ZWrite"), zwrite)) m.SetFloat("_ZWrite", zwrite);
-                if (m.renderQueue != queue) m.renderQueue = queue;
+                if (autoQueue && m.renderQueue != queue) m.renderQueue = queue;
                 if (m.GetTag("RenderType", false, "") != renderType) m.SetOverrideTag("RenderType", renderType);
+            }
+        }
+
+        /// <summary>
+        /// 按各材质自身的“模板类型”预设模板测试的比较规则与写入操作（Comp/Pass/Fail）。
+        /// <para>Off = 关闭模板测试（Comp Disabled）；Discard 丢弃 = 仅在缓冲区值≠序号处绘制（Comp NotEqual）；
+        /// Reserve 保留 = 始终绘制并把序号写入缓冲区（Comp Always + Pass/Fail Replace）。
+        /// 与派生渲染状态同理需每次 OnGUI 同步，仅在与当前值不同时才写入。</para>
+        /// </summary>
+        private void ApplyStencil()
+        {
+            if (Materials == null) return;
+            foreach (var m in Materials)
+            {
+                if (m == null) continue;
+
+                int type = m.HasProperty("_IntStencilType") ? (int)m.GetFloat("_IntStencilType") : 0;
+                //枚举值对应 UnityEngine.Rendering.CompareFunction / StencilOp
+                float comp, pass, fail;
+                switch (type)
+                {
+                    case (int)EStencilType.Discard: //丢弃：Comp=NotEqual(6) Pass/Fail=Keep(0)
+                        comp = (float)UnityEngine.Rendering.CompareFunction.NotEqual;
+                        pass = (float)UnityEngine.Rendering.StencilOp.Keep;
+                        fail = (float)UnityEngine.Rendering.StencilOp.Keep;
+                        break;
+                    case (int)EStencilType.Reserve: //保留：Comp=Always(8) Pass/Fail=Replace(2)
+                        comp = (float)UnityEngine.Rendering.CompareFunction.Always;
+                        pass = (float)UnityEngine.Rendering.StencilOp.Replace;
+                        fail = (float)UnityEngine.Rendering.StencilOp.Replace;
+                        break;
+                    default: //Off：Comp=Disabled(0)，关闭模板测试
+                        comp = (float)UnityEngine.Rendering.CompareFunction.Disabled;
+                        pass = (float)UnityEngine.Rendering.StencilOp.Keep;
+                        fail = (float)UnityEngine.Rendering.StencilOp.Keep;
+                        break;
+                }
+
+                if (!Mathf.Approximately(m.GetFloat("_FloatStencilComp"), comp)) m.SetFloat("_FloatStencilComp", comp);
+                if (!Mathf.Approximately(m.GetFloat("_FloatStencilPass"), pass)) m.SetFloat("_FloatStencilPass", pass);
+                if (!Mathf.Approximately(m.GetFloat("_FloatStencilFail"), fail)) m.SetFloat("_FloatStencilFail", fail);
             }
         }
         #endregion

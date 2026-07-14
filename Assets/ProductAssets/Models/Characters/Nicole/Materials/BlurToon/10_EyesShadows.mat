@@ -18,9 +18,9 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2000
+  m_CustomRenderQueue: 3000
   stringTagMap:
-    RenderType: Opaque
+    RenderType: Transparent
   disabledShaderPasses:
   - Outline
   m_LockedProperties: 
@@ -75,6 +75,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TexClipMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _TexHighLightMaskMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -123,7 +127,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _DstBlend: 0
+    - _DstBlend: 10
     - _EdgeScale: 0.001
     - _EdgeSize: 0.0005
     - _EnvironmentReflections: 1
@@ -141,6 +145,8 @@ Material:
     - _FloatBuiltInLightXAxis: 1
     - _FloatBuiltInLightYAxis: 1
     - _FloatBuiltInLightZAxis: -1
+    - _FloatClipIntensity: 0
+    - _FloatClipTransIntensity: 0
     - _FloatEnvLightIntensity: 2
     - _FloatGlobalExposureIntensity: 1
     - _FloatHighLightBlur: 0.1
@@ -168,6 +174,10 @@ Material:
     - _FloatShadeThresholdMapIntensity: 0.5
     - _FloatShadowIntensity: 0
     - _FloatShadowTerminatorSmooth: 0.1
+    - _FloatStencilComp: 0
+    - _FloatStencilFail: 0
+    - _FloatStencilNum: 1
+    - _FloatStencilPass: 0
     - _GlobalLightBaseMapMixedIntensity: 0.5
     - _GlobalLightBaseShade1MixedIntensity: 0.5
     - _GlobalLightBaseShade2MixedIntensity: 0.5
@@ -177,6 +187,9 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.1
     - _GlossyReflections: 1
+    - _IntClipType: 0
+    - _IntRenderFaceType: 2
+    - _IntStencilType: 0
     - _Metallic: 0
     - _Mode: 0
     - _NoShadowCasting: 1
@@ -190,8 +203,8 @@ Material:
     - _Smoothness: 0.1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SrcBlend: 1
-    - _Surface: 0
+    - _SrcBlend: 5
+    - _Surface: 1
     - _TessEdgeLength: 5
     - _TessExtrusionAmount: 0
     - _TessPhongStrength: 0.5
@@ -199,6 +212,7 @@ Material:
     - _ToggleAlphaClip: 0
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
+    - _ToggleClipTransBaseMapAlpha: 0
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
@@ -223,10 +237,10 @@ Material:
     - _ToggleShadowTerminatorSmooth: 0
     - _UVSec: 0
     - _WorkflowMode: 1
-    - _ZWrite: 1
+    - _ZWrite: 0
     m_Colors:
     - _Ambient: {r: 0.5, g: 0.5, b: 0.5, a: 0}
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 0.27450982}
     - _BaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}

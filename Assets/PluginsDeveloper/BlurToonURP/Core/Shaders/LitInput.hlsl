@@ -44,6 +44,25 @@ half _ZWrite; //深度写入
 half _Cutoff; //透明度裁切阈值
 
 
+//-------- Basic 基础设置（渲染面 / 裁剪 / 模板测试）--------
+//以下多为固定管线渲染状态或仅驱动关键词的“记录值”，HLSL 中仅采样裁剪相关项；
+//与 _SrcBlend/_ZWrite 同理一并纳入 CBUFFER，保证各 Pass 布局完全一致、兼容 SRP Batcher。
+half _IntRenderFaceType; //渲染面 0=Both 1=Back 2=Front（值即 Cull 模式：0=Off,1=Front,2=Back）
+half _ToggleRenderQueueAuto; //渲染队列自动（记录，仅编辑器读取）
+//裁剪 Clip（溶解，与“透明度裁切”相互独立）
+half _IntClipType; //裁剪类型 0=Off 1=Dither 2=Alpha（记录，驱动关键词）
+float4 _TexClipMaskMap_ST; //裁剪遮罩贴图 ST
+half _FloatClipIntensity; //挖孔裁剪强度
+half _FloatClipTransIntensity; //透明度裁剪强度
+half _ToggleClipTransBaseMapAlpha; //基础贴图A通道生效
+//模板测试 Stencil
+half _IntStencilType; //模板类型 0=Off 1=Discard 2=Reserve（记录，驱动 Comp/Pass/Fail 预设）
+half _FloatStencilNum; //模板组序号（Ref）
+half _FloatStencilComp; //比较规则（CompareFunction）
+half _FloatStencilPass; //测试通过写入规则（StencilOp）
+half _FloatStencilFail; //测试失败写入规则（StencilOp）
+
+
 //-------- NormalMap 法线贴图 --------
 float4 _BumpMap_ST;
 half _BumpScale; //法线贴图强度

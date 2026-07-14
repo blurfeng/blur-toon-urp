@@ -14,14 +14,16 @@ Material:
   m_ValidKeywords:
   - _ADDLIGHT_ON
   - _BASEMAP_SHADE_THRESHOLDMAP_ON
+  - _HIGHLIGHT_ON
   - _OUTLINE_ON
   - _OUTLINE_WIDTH_SAME
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
+  m_CustomRenderQueue: 2000
+  stringTagMap:
+    RenderType: Opaque
   disabledShaderPasses: []
   m_LockedProperties: _FloatShadeThresholdMapIntensity
   m_SavedProperties:
@@ -68,6 +70,10 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SpecGlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexClipMaskMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -124,6 +130,8 @@ Material:
     - _FloatBuiltInLightAxisZ: -1
     - _FloatBuiltInLightColorBlend: 1
     - _FloatBuiltInLightDirBlend: 0.5
+    - _FloatClipIntensity: 0
+    - _FloatClipTransIntensity: 0
     - _FloatEnvLightIntensity: 2
     - _FloatGlobalExposureIntensity: 1
     - _FloatHighLightBlur: 0.1
@@ -149,6 +157,10 @@ Material:
     - _FloatShadeThresholdMapIntensity: 1
     - _FloatShadowIntensity: 0.473
     - _FloatShadowTerminatorSmooth: 0.322
+    - _FloatStencilComp: 0
+    - _FloatStencilFail: 0
+    - _FloatStencilNum: 1
+    - _FloatStencilPass: 0
     - _GlobalLightBaseMapMixedIntensity: 0.5
     - _GlobalLightBaseShade1MixedIntensity: 0.5
     - _GlobalLightBaseShade2MixedIntensity: 0.5
@@ -158,6 +170,9 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
+    - _IntClipType: 0
+    - _IntRenderFaceType: 2
+    - _IntStencilType: 0
     - _Metallic: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.005
@@ -172,13 +187,14 @@ Material:
     - _ToggleAlphaClip: 0
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
+    - _ToggleClipTransBaseMapAlpha: 0
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
     - _ToggleGlobalLightOutline: 1
     - _ToggleGlobalLightRimLight: 1
     - _ToggleGlobalLightRimLightShade: 1
-    - _ToggleHighLight: 0
+    - _ToggleHighLight: 1
     - _ToggleLightHorLockBaseMap: 0
     - _ToggleLightHorLockRimLight: 0
     - _ToggleNormalMapOnBaseMap: 0
