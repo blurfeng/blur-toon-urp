@@ -1160,19 +1160,17 @@ Shader "BlurToonURP/Lit"
                 //描边宽度
                 half outlineWidth = _FloatOutlineWidth * 0.001;
 
-                //切线
-                real sign = IN.tangentOS.w * GetOddNegativeScale();
-                half4 tangentWS = half4(normalInput.tangentWS.xyz, sign);
-
-                //顶点色法线
-                float3 colorDir = IN.color.rgb;
-                float3 binormalWS = cross(normalInput.normalWS, colorDir) * tangentWS.w;//副法线
-                colorDir = normalize(mul(colorDir, half3x3(tangentWS.xyz, binormalWS, normalInput.normalWS)));
+                //顶点色平滑法线：SmoothNormalGenerator 将对象空间平滑法线的 XY 编码进 RG，Z 未存储
+                float2 snXY = IN.color.rg * 2.0 - 1.0;
+                float3 snOS = normalize(float3(snXY, sqrt(saturate(1.0 - dot(snXY, snXY)))));
+                //重建出的 Z 恒为正，与原始顶点法线反向时翻转，补回烘焙时丢失的符号
+                if (dot(snOS, normalize(IN.normalOS)) < 0.0) snOS.z = -snOS.z;
+                float3 colorDir = TransformObjectToWorldNormal(normalize(snOS));
 
                 //描边类型，通过lerp和step构建的if选择器
                 float3 moveDir =
                     lerp(normalInput.normalWS.rgb,
-                    lerp(colorDir, tangentWS.xyz, step(1.01, _FloatOutlineType)),
+                    lerp(colorDir, normalInput.tangentWS.xyz, step(1.01, _FloatOutlineType)),
                     step(0.01, _FloatOutlineType)
                     );
                 moveDir = normalize(moveDir);

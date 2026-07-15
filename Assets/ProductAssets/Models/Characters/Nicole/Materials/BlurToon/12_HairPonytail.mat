@@ -197,7 +197,7 @@ Material:
     - _FloatOuelintWidthType: 0
     - _FloatOutlineBaseMapBlendIntensity: 1
     - _FloatOutlineMapIntensity: 1
-    - _FloatOutlineType: 0
+    - _FloatOutlineType: 1
     - _FloatOutlineWidth: 1.5
     - _FloatOutlineWidthType: 0
     - _FloatOutlintWidthType: 0
