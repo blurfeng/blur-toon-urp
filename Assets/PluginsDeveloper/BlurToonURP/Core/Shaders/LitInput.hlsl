@@ -74,7 +74,7 @@ half _ToggleNormalMapOnEmissive; //开关 自发光（视角变化颜色）
 //（边缘光法线来源改为边缘光段的专属配置 _FloatRimLightNormalSource / _FloatRimLightNormalMapBlend）
 
 
-//-------- HighLight 镜面高光 --------
+//-------- HighLight 高光 --------
 //（_ToggleHighLight 仅用于记录并驱动关键词 _HIGHLIGHT_ON，HLSL 不读取，故不在此声明）
 float4 _TexHighLightMap_ST; //高光贴图 ST
 half4 _ColorHighLightColor; //高光颜色

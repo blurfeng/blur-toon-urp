@@ -15,7 +15,7 @@ namespace BlurToonURP.EditorGUIx
             EditorGUIx.FoldoutPanel("【基础设置 Basic】表面类型、渲染面、透明度裁切、裁剪、模板测试", PanelMainBasic);
             EditorGUIx.FoldoutPanel("【基础贴图 BaseMap】基础贴图及暗部贴图", PanelMainBasicMap);
             EditorGUIx.FoldoutPanel("【法线贴图 NormalMap】贴图、强度、各效果生效状态", PanelMainNormalMap);
-            EditorGUIx.FoldoutPanel("【镜面高光 HighLight】高光颜色、大小、遮罩", PanelMainHighLight);
+            EditorGUIx.FoldoutPanel("【高光 HighLight】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【外描边 Outline】粗细、颜色", PanelMainOutline);
             EditorGUIx.FoldoutPanel("【边缘光 RimLight】颜色、大小、遮罩", PanelMainRimLight);
             EditorGUIx.FoldoutPanel("【自发光 Emissive】遮罩、颜色(HDR)、动画", PanelMainEmissive);
@@ -495,8 +495,8 @@ namespace BlurToonURP.EditorGUIx
             //基础贴图无主开关，不在任何关键词块内，恒编译进每个变体
             new NormalMapUsage("基础贴图", "【基础贴图 BaseMap】", "_ToggleNormalMapOnBaseMap", null),
             //法线用于高光的 NdotH，位于 #if _HIGHLIGHT_ON 内
-            new NormalMapUsage("镜面高光", "【镜面高光 HighLight】", "_ToggleNormalMapOnHighLight",
-                "需开启【镜面高光】主开关", "_ToggleHighLight"),
+            new NormalMapUsage("高光", "【高光 HighLight】", "_ToggleNormalMapOnHighLight",
+                "需开启【高光】主开关", "_ToggleHighLight"),
             //法线只用于“视角变化颜色”的菲涅尔，位于 #if _EMISSIVE_ON + #if _EMISSIVE_ANIM 内
             //（固定模式的 #else 分支不引用法线），且其结果只经由 _ToggleEmissiveViewChangeColor 的 lerp 汇入最终色
             new NormalMapUsage("自发光", "【自发光 Emissive】→ 自发光动画 → 视角变化颜色", "_ToggleNormalMapOnEmissive",
@@ -654,28 +654,28 @@ namespace BlurToonURP.EditorGUIx
         }
         #endregion
 
-        #region HighLight 镜面高光
+        #region HighLight 高光
         private static readonly GUIContent ContentHighLightMap = new GUIContent("高光贴图", "高光基础色 = 贴图RGB(sRGB) × 颜色(HDR)。默认白=纯色高光；可用贴图做彩色/图案高光。");
         private static readonly GUIContent ContentHighLightShadowMask = new GUIContent("阴影遮罩", "高光在暗部（暗部1区域）是否受阴影影响而压暗，避免阴影里出现不自然高光。");
         private static readonly GUIContent ContentHighLightMaskTex = new GUIContent("遮罩贴图", "在遮罩贴图中绘制高光的分布与强度（采样R通道），uv坐标与基础贴图相同。");
 
         /// <summary>
-        /// 关键词 镜面高光 开启
+        /// 关键词 高光 开启
         /// </summary>
         private const string MatKeywordHighLightOn = "_HIGHLIGHT_ON";
         /// <summary>
-        /// 关键词 镜面高光 遮罩贴图 开启
+        /// 关键词 高光 遮罩贴图 开启
         /// </summary>
         private const string MatKeywordHighLightMaskMapOn = "_HIGHLIGHT_MASKMAP_ON";
 
         /// <summary>
-        /// 主面板 镜面高光
+        /// 主面板 高光
         /// </summary>
         private void PanelMainHighLight()
         {
             //条目 高光主开关
             var matPropToggleHighLight = GetMaterialProperty("_ToggleHighLight");
-            EditorGUIx.SwitchButton("镜面高光-主开关", matPropToggleHighLight);
+            EditorGUIx.SwitchButton("高光-主开关", matPropToggleHighLight);
             //多选编辑：按各材质自身开关值同步关键词
             ApplyKeyword(MatKeywordHighLightOn, "_ToggleHighLight");
             if (!matPropToggleHighLight.floatValue.Equals(1))

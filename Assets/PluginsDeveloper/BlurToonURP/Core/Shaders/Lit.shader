@@ -63,7 +63,7 @@ Shader "BlurToonURP/Lit"
         //（边缘光的法线来源已改为边缘光面板中的专属配置 _FloatRimLightNormalSource，此处不再共用开关）
 
 
-        //----------- HighLight 镜面高光 -----------
+        //----------- HighLight 高光 -----------
         _ToggleHighLight ("HighLight Toggle", Float) = 0 //高光开关 ●仅用于记录 设置关键词开启
         _TexHighLightMap ("HighLight Map", 2D) = "white" {} //高光贴图（RGB 调制高光色，默认白=纯色高光）
         [HDR]_ColorHighLightColor ("HighLight Color", Color) = (1, 1, 1, 1) //颜色
@@ -249,7 +249,7 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _BASEMAP_SHADE_THRESHOLDMAP_ON //暗部阈值贴图
 			#pragma shader_feature_local _ADDLIGHT_ON // 附加光照
             #pragma shader_feature_local _BUILTINLIGHT_ON // 内置光照
-            //镜面高光
+            //高光
             #pragma shader_feature_local _HIGHLIGHT_ON
             #pragma shader_feature_local _HIGHLIGHT_MASKMAP_ON
             //边缘光
@@ -537,7 +537,7 @@ Shader "BlurToonURP/Lit"
                 //-------- BaseMap 基础贴图 -------- End
 
 
-                //-------- HighLight 镜面高光 -------- Start
+                //-------- HighLight 高光 -------- Start
                 #if defined(_HIGHLIGHT_ON)
                 //高光使用的法线（根据开关，使用顶点法线或法线贴图法线）
                 float3 normalDirOnHighLight = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnHighLight);
@@ -572,7 +572,7 @@ Shader "BlurToonURP/Lit"
                 //叠加到最终颜色
                 colorFinalBlend += colorHighLight * highLightFactor;
                 #endif
-                //-------- HighLight 镜面高光 -------- End
+                //-------- HighLight 高光 -------- End
 
 
                 //-------- RimLight 边缘光 -------- Start
