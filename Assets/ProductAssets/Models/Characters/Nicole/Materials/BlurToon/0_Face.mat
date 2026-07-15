@@ -224,7 +224,6 @@ Material:
     - _ToggleRimLightShadeColorHard: 0
     - _ToggleRimLightShadeMask: 1
     - _ToggleShadeThresholdMap: 1
-    - _ToggleShadowCaster: 1
     - _ToggleShadowReceive: 1
     - _ToggleShadowTerminatorSmooth: 0
     - _UVSec: 0

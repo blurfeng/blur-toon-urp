@@ -177,7 +177,7 @@ Shader "BlurToonURP/Lit"
         _ToggleGlobalLightMatCapMap ("GlobalLight MatCapMap Toggle", Float) = 1 //材质捕获
         
         //阴影设置
-        _ToggleShadowCaster ("ShadowCaster Toggle", Float ) = 1 //开关 阴影投射 ●仅用于记录 设置Pass开启
+        //（阴影投射没有对应属性：由编辑器直接开关 ShadowCaster Pass，状态存于材质的 disabledShaderPasses）
         _ToggleShadowReceive ("ShadowReceive Toggle", Float ) = 1 //开关 阴影接收
         _FloatShadowIntensity ("Shadow Intensity", Range(-1, 1)) = 0 //阴影强度
         //明暗交界处理模式(默认关)：
@@ -626,7 +626,7 @@ Shader "BlurToonURP/Lit"
                     //暗部颜色，按配置混合光照颜色
                     half3 colorRimLightShade = lerp(_ColorRimLightShadeColor.rgb,
                     lerp(_ColorRimLightShadeColor.rgb, _ColorRimLightShadeColor.rgb * colorLightBlend, _GlobalLightRimLightShadeMixedIntensity),
-                    _ToggleGlobalLightRimLight);
+                    _ToggleGlobalLightRimLightShade);
                     colorRimLightShade *= _ColorRimLightShadeColor.a; //透明度
                     //暗部边缘光系数
                     float rimLightShadeFactor = pow(rimLightNdotV, exp2(lerp(3, 0, _FloatRimLightShadeColorIntensity)));
