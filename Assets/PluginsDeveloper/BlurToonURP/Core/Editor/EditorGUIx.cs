@@ -42,6 +42,62 @@ namespace BlurToonURP.EditorGUIx
 
         #endregion
 
+        #region Label State 只读状态标签
+
+        /// <summary>
+        /// 状态色 生效（与开关按钮的开启色一致）
+        /// </summary>
+        public static Color ColorStateOn => ColorOn;
+
+        /// <summary>
+        /// 状态色 未启用（与开关按钮的关闭色一致）
+        /// </summary>
+        public static Color ColorStateOff => ColorOff;
+
+        /// <summary>
+        /// 状态色 不生效（开关已开，但前置条件不满足）。与 <see cref="LabelError"/> 的红字同色。
+        /// </summary>
+        public static Color ColorStateInvalid { get; } = new Color(1f, 0.42f, 0.38f);
+
+        private static GUIStyle _stateLabel;
+        private static GUIStyle StateLabel
+        {
+            get
+            {
+                if (_stateLabel == null)
+                {
+                    _stateLabel = new GUIStyle(EditorStyles.miniLabel);
+                    _stateLabel.alignment = TextAnchor.MiddleCenter;
+                    _stateLabel.fontStyle = FontStyle.Bold;
+                }
+
+                return _stateLabel;
+            }
+        }
+
+        /// <summary>
+        /// 只读状态标签：显示某开关的生效状态，开关本体在其它面板内（此处不可点击）。
+        /// <para>宽度与 <see cref="SwitchButton(string, MaterialProperty)"/> 的 On/Off 按钮一致，便于纵向对齐。</para>
+        /// </summary>
+        /// <param name="label"></param>
+        /// <param name="stateText">状态文字</param>
+        /// <param name="stateColor">状态色，取 <see cref="ColorStateOn"/> / <see cref="ColorStateOff"/> / <see cref="ColorStateInvalid"/></param>
+        public static void LabelState(GUIContent label, string stateText, Color stateColor)
+        {
+            EditorGUILayout.BeginHorizontal();
+
+            EditorGUILayout.LabelField(label);
+
+            var prev = GUI.color;
+            GUI.color = stateColor;
+            GUILayout.Label(stateText, StateLabel, LayoutBtnSmall);
+            GUI.color = prev;
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        #endregion
+
         #region Switch Button 切换按钮
         
         /// <summary>
@@ -373,7 +429,7 @@ namespace BlurToonURP.EditorGUIx
         public static void LabelError(string text)
         {
             var prev = GUI.color;
-            GUI.color = new Color(1f, 0.42f, 0.38f);
+            GUI.color = ColorStateInvalid;
             GUILayout.Label(text, ErrorLabel);
             GUI.color = prev;
         }

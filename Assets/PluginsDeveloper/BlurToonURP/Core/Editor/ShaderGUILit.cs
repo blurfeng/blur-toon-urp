@@ -14,7 +14,7 @@ namespace BlurToonURP.EditorGUIx
 
             EditorGUIx.FoldoutPanel("【基础设置 Basic】表面类型、渲染面、透明度裁切、裁剪、模板测试", PanelMainBasic);
             EditorGUIx.FoldoutPanel("【基础贴图 BaseMap】基础贴图及暗部贴图", PanelMainBasicMap);
-            EditorGUIx.FoldoutPanel("【法线贴图 NormalMap】强度、效果开关", PanelMainNormalMap);
+            EditorGUIx.FoldoutPanel("【法线贴图 NormalMap】贴图、强度、各效果生效状态", PanelMainNormalMap);
             EditorGUIx.FoldoutPanel("【镜面高光 HighLight】高光颜色、大小、遮罩", PanelMainHighLight);
             EditorGUIx.FoldoutPanel("【外描边 Outline】粗细、颜色", PanelMainOutline);
             EditorGUIx.FoldoutPanel("【边缘光 RimLight】颜色、大小、遮罩", PanelMainRimLight);
@@ -418,11 +418,190 @@ namespace BlurToonURP.EditorGUIx
 
         #region 主面板-法线贴图
         private static GUIContent m_ContentBaseNormalMap = new GUIContent("法线贴图", "法线偏移 : 贴图采样矢量(sRGB)进行法线偏移");
+        private static readonly GUIContent ContentNormalMapStateList = new GUIContent("生效状态一览（只读）",
+            "汇总各效果的法线开关当前是否真正生效。开关本体仍在各自的效果面板内设置，此处不可点击。");
+        private static readonly GUIContent ContentNormalMapStateRimLight = new GUIContent("边缘光",
+            "在【边缘光 RimLight】面板用“法线来源”下拉配置（几何法线 / 法线贴图 / 混合），不是开关。\n" +
+            "选“几何法线”显示为未启用；生效还需开启边缘光主开关；“混合”模式下混合强度为 0 等同于几何法线。");
+
+        /// <summary>
+        /// 法线开关的生效状态
+        /// </summary>
+        private enum ENormalMapState
+        {
+            /// <summary>
+            /// 生效：开关已开，且前置条件全部满足
+            /// </summary>
+            On,
+
+            /// <summary>
+            /// 未启用：开关为关（边缘光则为选用了几何法线）
+            /// </summary>
+            Off,
+
+            /// <summary>
+            /// 不生效：开关已开，但缺法线贴图 / 强度为0 / 前置开关未开，画面无任何变化
+            /// </summary>
+            Invalid
+        }
+
+        /// <summary>
+        /// 生效状态一览的条目：某效果的法线开关，及其生效所需的全部前置开关。
+        /// <para>前置开关对应 Shader 的实际结构：前置为关时，该效果的法线开关所在代码段会被关键词编译掉，
+        /// 或其结果被 lerp 丢弃，此时开关即使为开也不产生任何画面变化。</para>
+        /// </summary>
+        private readonly struct NormalMapUsage
+        {
+            /// <summary>
+            /// 效果名
+            /// </summary>
+            public readonly string Label;
+
+            /// <summary>
+            /// 法线开关所在位置，供悬浮说明指路
+            /// </summary>
+            public readonly string Location;
+
+            /// <summary>
+            /// 该效果的法线开关属性
+            /// </summary>
+            public readonly string ToggleProperty;
+
+            /// <summary>
+            /// 生效前置开关属性，需全部为开
+            /// </summary>
+            public readonly string[] Prerequisites;
+
+            /// <summary>
+            /// 前置未满足时的说明，无前置则为 null
+            /// </summary>
+            public readonly string PrerequisiteHint;
+
+            public NormalMapUsage(string label, string location, string toggleProperty, string prerequisiteHint, params string[] prerequisites)
+            {
+                Label = label;
+                Location = location;
+                ToggleProperty = toggleProperty;
+                PrerequisiteHint = prerequisiteHint;
+                Prerequisites = prerequisites;
+            }
+        }
+
+        /// <summary>
+        /// 各效果的法线开关及其生效前置。前置取自 Lit.shader 中实际的关键词编译块与 lerp 丢弃，改 Shader 结构时需同步此表。
+        /// </summary>
+        private static readonly NormalMapUsage[] NormalMapUsages =
+        {
+            //基础贴图无主开关，不在任何关键词块内，恒编译进每个变体
+            new NormalMapUsage("基础贴图", "【基础贴图 BaseMap】", "_ToggleNormalMapOnBaseMap", null),
+            //法线用于高光的 NdotH，位于 #if _HIGHLIGHT_ON 内
+            new NormalMapUsage("镜面高光", "【镜面高光 HighLight】", "_ToggleNormalMapOnHighLight",
+                "需开启【镜面高光】主开关", "_ToggleHighLight"),
+            //法线只用于“视角变化颜色”的菲涅尔，位于 #if _EMISSIVE_ON + #if _EMISSIVE_ANIM 内
+            //（固定模式的 #else 分支不引用法线），且其结果只经由 _ToggleEmissiveViewChangeColor 的 lerp 汇入最终色
+            new NormalMapUsage("自发光", "【自发光 Emissive】→ 自发光动画 → 视角变化颜色", "_ToggleNormalMapOnEmissive",
+                "需开启【自发光】主开关 + 自发光动画 + 视角变化颜色（固定模式不使用法线）",
+                "_ToggleEmissive", "_ToggleEmissiveAnim", "_ToggleEmissiveViewChangeColor"),
+            //法线用于 MatCap 的观察空间采样，位于 #if _MATCAP_ON 内
+            new NormalMapUsage("材质捕获", "【材质捕获 MatCap】", "_ToggleNormalMapOnMatCap",
+                "需开启【材质捕获】主开关", "_ToggleMatCap"),
+        };
 
         /// <summary>
         /// 当前(激活)材质是否已指定有效的法线贴图（_BumpMap）。用于各效果面板的法线开关红字提示。
         /// </summary>
         private bool HasNormalMap => GetMaterialProperty("_BumpMap").textureValue != null;
+
+        /// <summary>
+        /// 材质是否具备能产生实际偏移的法线贴图：已指定贴图，且强度不为 0。
+        /// <para>强度为 0 时 UnpackNormalScale 的结果为平面法线 (0,0,1)，经 TBN 还原后就是几何法线，等同于未指定贴图。</para>
+        /// </summary>
+        private static bool HasValidNormalMap(Material m)
+            => m.HasProperty("_BumpMap") && m.GetTexture("_BumpMap") != null
+               && m.HasProperty("_BumpScale") && !Mathf.Approximately(m.GetFloat("_BumpScale"), 0f);
+
+        /// <summary>
+        /// 材质上某开关属性是否为开
+        /// </summary>
+        private static bool IsToggleOn(Material m, string toggleProperty)
+            => m.HasProperty(toggleProperty) && Mathf.Approximately(m.GetFloat(toggleProperty), 1f);
+
+        /// <summary>
+        /// 计算单个材质上某效果的法线开关生效状态
+        /// </summary>
+        private static ENormalMapState GetNormalMapState(Material m, NormalMapUsage usage)
+        {
+            if (!IsToggleOn(m, usage.ToggleProperty))
+                return ENormalMapState.Off;
+
+            if (!HasValidNormalMap(m))
+                return ENormalMapState.Invalid;
+
+            for (int i = 0; i < usage.Prerequisites.Length; i++)
+            {
+                if (!IsToggleOn(m, usage.Prerequisites[i]))
+                    return ENormalMapState.Invalid;
+            }
+
+            return ENormalMapState.On;
+        }
+
+        /// <summary>
+        /// 计算单个材质上边缘光的法线生效状态。边缘光用“法线来源”下拉配置，而非开关。
+        /// </summary>
+        private static ENormalMapState GetRimLightNormalState(Material m)
+        {
+            if (!m.HasProperty("_FloatRimLightNormalSource"))
+                return ENormalMapState.Off;
+
+            //几何法线：本就不使用法线贴图
+            float source = m.GetFloat("_FloatRimLightNormalSource");
+            if (Mathf.Approximately(source, (float)ERimLightNormalSource.VertexNormal))
+                return ENormalMapState.Off;
+
+            if (!HasValidNormalMap(m) || !IsToggleOn(m, "_ToggleRimLight"))
+                return ENormalMapState.Invalid;
+
+            //混合模式下混合强度为 0：结果收敛到几何法线，等同于未使用法线贴图
+            if (Mathf.Approximately(source, (float)ERimLightNormalSource.Blend)
+                && m.HasProperty("_FloatRimLightNormalMapBlend")
+                && Mathf.Approximately(m.GetFloat("_FloatRimLightNormalMapBlend"), 0f))
+                return ENormalMapState.Invalid;
+
+            return ENormalMapState.On;
+        }
+
+        /// <summary>
+        /// 绘制一行生效状态。多选编辑时各材质状态不一致则显示“多值”，避免误导为统一状态。
+        /// </summary>
+        private void LabelNormalMapState(GUIContent label, System.Func<Material, ENormalMapState> getState)
+        {
+            if (Materials == null || Materials.Length == 0 || Materials[0] == null)
+                return;
+
+            var state = getState(Materials[0]);
+            for (int i = 1; i < Materials.Length; i++)
+            {
+                if (Materials[i] == null) continue;
+                if (getState(Materials[i]) == state) continue;
+
+                EditorGUIx.LabelState(label, "多值", EditorGUIx.ColorStateOff);
+                return;
+            }
+
+            switch (state)
+            {
+                case ENormalMapState.On:
+                    EditorGUIx.LabelState(label, "生效", EditorGUIx.ColorStateOn);
+                    break;
+                case ENormalMapState.Invalid:
+                    EditorGUIx.LabelState(label, "不生效", EditorGUIx.ColorStateInvalid);
+                    break;
+                default:
+                    EditorGUIx.LabelState(label, "未启用", EditorGUIx.ColorStateOff);
+                    break;
+            }
+        }
 
         /// <summary>
         /// 绘制某效果的“使用法线贴图”开关；开启但未指定法线贴图时红字提示。
@@ -446,13 +625,32 @@ namespace BlurToonURP.EditorGUIx
             MaterialEditor.TexturePropertySingleLine(m_ContentBaseNormalMap, matPropTexNormalMap, GetMaterialProperty("_BumpScale"));
             MaterialEditor.TextureScaleOffsetProperty(matPropTexNormalMap);
 
-            //法线的“有效开关”已分散到各效果面板（面向对象）：基础贴图/高光/材质捕获/自发光 各自设置，
-            //边缘光在【边缘光】面板用“法线来源”配置。此处仅负责指定法线贴图本身。
+            //法线的启用开关已分散到各效果面板（面向对象），此处只读汇总各效果的生效状态：
+            //便于一眼看出“开了法线开关却没有变化”到底是缺贴图、强度为 0，还是效果自身的前置开关未开。
             EditorGUILayout.Space();
-            EditorGUIx.LabelItem(new GUIContent("法线的启用开关在各效果面板内单独设置",
-                "基础贴图/高光/材质捕获/自发光 的法线开关分别在各自面板；边缘光在【边缘光】面板用“法线来源”配置。"));
+            EditorGUIx.LabelItem(ContentNormalMapStateList);
+
+            for (int i = 0; i < NormalMapUsages.Length; i++)
+            {
+                var usage = NormalMapUsages[i];
+                LabelNormalMapState(new GUIContent(usage.Label, NormalMapStateTooltip(usage)), m => GetNormalMapState(m, usage));
+            }
+            //边缘光的法线由“法线来源”下拉配置，判定规则与开关不同，单独一行
+            LabelNormalMapState(ContentNormalMapStateRimLight, GetRimLightNormalState);
+
             if (!HasNormalMap)
                 EditorGUIx.LabelError("⚠ 尚未指定法线贴图：各效果的法线开关即使开启也不会生效");
+            else if (Mathf.Approximately(GetMaterialProperty("_BumpScale").floatValue, 0f))
+                EditorGUIx.LabelError("⚠ 法线强度为 0：采样结果为平面法线，等同于未指定法线贴图");
+        }
+
+        /// <summary>
+        /// 生效状态一览条目的悬浮说明：指出开关位置与生效所需的前置。
+        /// </summary>
+        private static string NormalMapStateTooltip(NormalMapUsage usage)
+        {
+            string text = $"开关位置：{usage.Location}\n需指定法线贴图且强度不为 0";
+            return string.IsNullOrEmpty(usage.PrerequisiteHint) ? text : $"{text}\n{usage.PrerequisiteHint}";
         }
         #endregion
 
