@@ -19,9 +19,9 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 3000
+  m_CustomRenderQueue: 2449
   stringTagMap:
-    RenderType: Transparent
+    RenderType: Opaque
   disabledShaderPasses:
   - Outline
   m_LockedProperties: 
@@ -76,7 +76,27 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TexClipMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexEmissiveMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexHighLightMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _TexHighLightMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexMatCapMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TexMatCapMaskMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -124,7 +144,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _DstBlend: 10
+    - _DstBlend: 0
     - _EdgeScale: 0.001
     - _EdgeSize: 0.0005
     - _EnvironmentReflections: 1
@@ -142,12 +162,26 @@ Material:
     - _FloatBuiltInLightXAxis: 1
     - _FloatBuiltInLightYAxis: 1
     - _FloatBuiltInLightZAxis: -1
+    - _FloatClipIntensity: 0
+    - _FloatClipTransIntensity: 0
+    - _FloatEmissiveAnimDirU: 0.5
+    - _FloatEmissiveAnimDirV: 0.5
+    - _FloatEmissiveAnimRotate: 0
+    - _FloatEmissiveAnimSpeed: 0.5
+    - _FloatEmissiveAnimUVType: 0
+    - _FloatEmissiveChangeSpeed: 0
     - _FloatEnvLightIntensity: 2
     - _FloatGlobalExposureIntensity: 1
     - _FloatHighLightBlur: 0.1
     - _FloatHighLightIntensity: 0.5
     - _FloatHighLightMaskMapIntensity: 1
+    - _FloatHighLightShadowMaskIntensity: 0
     - _FloatHighLightSize: 0.5
+    - _FloatMatCapColorBlend: 1
+    - _FloatMatCapColorBlendIntensity: 1
+    - _FloatMatCapMaskMapIntensity: 0
+    - _FloatMatCapRotate: 0
+    - _FloatMatCapShadowMaskIntensity: 0
     - _FloatOuelintWidthType: 0
     - _FloatOutlineBaseMapBlendIntensity: 1
     - _FloatOutlineMapIntensity: 1
@@ -169,6 +203,10 @@ Material:
     - _FloatShadeThresholdMapIntensity: 0.5
     - _FloatShadowIntensity: 0
     - _FloatShadowTerminatorSmooth: 0.1
+    - _FloatStencilComp: 8
+    - _FloatStencilFail: 2
+    - _FloatStencilNum: 1
+    - _FloatStencilPass: 2
     - _GlobalLightBaseMapMixedIntensity: 0.5
     - _GlobalLightBaseShade1MixedIntensity: 0.5
     - _GlobalLightBaseShade2MixedIntensity: 0.5
@@ -178,6 +216,9 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.1
     - _GlossyReflections: 1
+    - _IntClipType: 0
+    - _IntRenderFaceType: 2
+    - _IntStencilType: 2
     - _Metallic: 0
     - _Mode: 0
     - _NoShadowCasting: 0
@@ -191,8 +232,8 @@ Material:
     - _Smoothness: 0.1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SrcBlend: 5
-    - _Surface: 1
+    - _SrcBlend: 1
+    - _Surface: 0
     - _TessEdgeLength: 5
     - _TessExtrusionAmount: 0
     - _TessPhongStrength: 0.5
@@ -200,19 +241,34 @@ Material:
     - _ToggleAlphaClip: 0
     - _ToggleBuiltInLight: 0
     - _ToggleBuiltInLightColor: 0
+    - _ToggleClipTransBaseMapAlpha: 0
+    - _ToggleEmissive: 0
+    - _ToggleEmissiveAnim: 0
+    - _ToggleEmissiveAnimPingpong: 0
+    - _ToggleEmissiveChangeColor: 0
+    - _ToggleEmissiveViewChangeColor: 0
     - _ToggleGlobalLightBaseMap: 1
     - _ToggleGlobalLightBaseShade1: 1
     - _ToggleGlobalLightBaseShade2: 1
+    - _ToggleGlobalLightHighLight: 1
+    - _ToggleGlobalLightMatCapMap: 1
     - _ToggleGlobalLightOutline: 1
     - _ToggleGlobalLightRimLight: 1
     - _ToggleGlobalLightRimLightShade: 1
     - _ToggleHighLight: 0
+    - _ToggleHighLightShadowMask: 0
     - _ToggleLightHorLockBaseMap: 0
+    - _ToggleLightHorLockHighLight: 0
     - _ToggleLightHorLockRimLight: 0
+    - _ToggleMatCap: 0
+    - _ToggleMatCapShadowMask: 0
     - _ToggleNormalMapOnBaseMap: 0
+    - _ToggleNormalMapOnEmissive: 0
     - _ToggleNormalMapOnHighLight: 0
+    - _ToggleNormalMapOnMatCap: 0
     - _ToggleNormalMapOnRimLight: 0
     - _ToggleOutlineBaseMapBlend: 0
+    - _ToggleRenderQueueAuto: 1
     - _ToggleRimLight: 1
     - _ToggleRimLightHard: 0
     - _ToggleRimLightShadeColor: 0
@@ -223,7 +279,7 @@ Material:
     - _ToggleShadowTerminatorSmooth: 0
     - _UVSec: 0
     - _WorkflowMode: 1
-    - _ZWrite: 0
+    - _ZWrite: 1
     m_Colors:
     - _Ambient: {r: 0.5, g: 0.5, b: 0.5, a: 0}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
@@ -231,7 +287,11 @@ Material:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBaseMapBlendColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorBuiltInLightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorEmissiveChangeColor: {r: 0, g: 0, b: 0, a: 1}
+    - _ColorEmissiveMapColor: {r: 0, g: 0, b: 0, a: 1}
+    - _ColorEmissiveViewChangeColor: {r: 0, g: 0, b: 0, a: 1}
     - _ColorHighLightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorMatCapMapColor: {r: 1, g: 1, b: 1, a: 1}
     - _ColorOutlineColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}
     - _ColorRimLightColor: {r: 1, g: 1, b: 1, a: 0.29803923}
     - _ColorRimLightShadeColor: {r: 1, g: 1, b: 1, a: 0.29803923}
