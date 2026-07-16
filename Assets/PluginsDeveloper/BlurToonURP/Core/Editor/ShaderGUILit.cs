@@ -55,6 +55,7 @@ namespace BlurToonURP.EditorGUIx
 
             //边缘光
             SetKeyword(material, MatKeywordRimLightOn, "_ToggleRimLight");
+            SetKeyword(material, MatKeywordRimLightDepth, "_FloatRimLightType", (float)ERimLightType.Depth);
             SetKeyword(material, MatKeywordRimLightShadeMaskOn, "_ToggleRimLightShadeMask");
             SetKeyword(material, MatKeywordRimLightShadeMaskColorOn, "_ToggleRimLightShadeColor");
             SetKeywordByTexture(material, MatKeywordRimLightMaskMapOn, "_TexRimLightMaskMap");
@@ -902,6 +903,25 @@ namespace BlurToonURP.EditorGUIx
         private static readonly GUIContent ContentRimLightShadeMask = new GUIContent("暗部遮罩", "对“主光源反方向”的“边缘光”进行遮罩");
         private static readonly GUIContent ContentRimLightMaskTex = new GUIContent("遮罩贴图", "在遮罩贴图中绘制边缘光的分布与强度，uv坐标与基础贴图相同。");
         private static readonly GUIContent ContentRimLightNormalSource = new GUIContent("法线来源", "边缘光使用的法线来源：几何法线（较平滑）/ 法线贴图（含细节）/ 混合（两者按强度插值）。");
+        private static readonly GUIContent ContentRimLightType = new GUIContent("检测方式",
+            "边缘检测方式：\n菲涅尔 = 按法线与视线夹角，柔和渐变，随法线细节起伏。\n深度差 = 屏幕空间深度断层检测，轮廓等宽干净、不受表面法线影响。\n" +
+            "两种方式共用颜色/强度/内部距离/硬边缘/暗部遮罩/遮罩贴图。\n深度差需在 URP Asset 开启 Depth Texture 才生效。");
+
+        /// <summary>
+        /// 边缘光 检测方式
+        /// </summary>
+        private enum ERimLightType
+        {
+            /// <summary>
+            /// 菲涅尔（法线与视线夹角）
+            /// </summary>
+            Fresnel,
+
+            /// <summary>
+            /// 深度差（屏幕空间深度断层）
+            /// </summary>
+            Depth
+        }
 
         /// <summary>
         /// 边缘光 法线来源
@@ -940,6 +960,10 @@ namespace BlurToonURP.EditorGUIx
         /// 关键词 边缘光 遮罩贴图 开启
         /// </summary>
         private const string MatKeywordRimLightMaskMapOn = "_RIMLIGHT_MASKMAP_ON";
+        /// <summary>
+        /// 关键词 边缘光 深度差检测方式
+        /// </summary>
+        private const string MatKeywordRimLightDepth = "_RIMLIGHT_DEPTH_ON";
 
         /// <summary>
         /// 主面板-边缘光
@@ -965,19 +989,38 @@ namespace BlurToonURP.EditorGUIx
             //条目
             EditorGUIx.SwitchButton("硬边缘", GetMaterialProperty("_ToggleRimLightHard"));
 
-            //条目 法线来源（边缘光专属：几何法线 / 法线贴图 / 混合）
-            var matPropRimLightNormalSource = GetMaterialProperty("_FloatRimLightNormalSource");
-            EditorGUIx.DropdownEnum(ContentRimLightNormalSource, matPropRimLightNormalSource, typeof(ERimLightNormalSource), MaterialEditor);
-            //仅“混合”模式显示 几何↔法线贴图 的混合强度滑条
-            if (matPropRimLightNormalSource.floatValue.Equals((float)ERimLightNormalSource.Blend))
+            //条目 边缘检测方式（菲涅尔 / 深度差）
+            var matPropRimLightType = GetMaterialProperty("_FloatRimLightType");
+            EditorGUIx.DropdownEnum(ContentRimLightType, matPropRimLightType, typeof(ERimLightType), MaterialEditor);
+            //多选编辑：按各材质自身类型同步深度差关键词
+            ApplyKeyword(MatKeywordRimLightDepth, "_FloatRimLightType", (float)ERimLightType.Depth);
+
+            if (matPropRimLightType.floatValue.Equals((float)ERimLightType.Depth))
             {
+                //【深度差】屏幕空间深度断层检测：采样宽度 / 深度阈值 / 阈值软过渡（不使用法线来源）
                 EditorGUI.indentLevel++;
-                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightNormalMapBlend"), "| 混合强度");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightDepthWidth"), "| 采样宽度(像素)");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightDepthThreshold"), "| 深度阈值");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightDepthThresholdSoft"), "| 阈值软过渡");
                 EditorGUI.indentLevel--;
+                EditorGUIx.LabelError("⚠ 需在 URP Asset 开启 Depth Texture，否则深度差边缘光无效（可能整体发亮）");
             }
-            //法线来源用到法线贴图(法线贴图/混合)但未指定法线贴图时红字提示
-            if (!matPropRimLightNormalSource.floatValue.Equals((float)ERimLightNormalSource.VertexNormal) && !HasNormalMap)
-                EditorGUIx.LabelError("⚠ 未指定法线贴图（见【法线贴图 NormalMap】面板），法线来源不生效");
+            else
+            {
+                //【菲涅尔】法线来源（边缘光专属：几何法线 / 法线贴图 / 混合）
+                var matPropRimLightNormalSource = GetMaterialProperty("_FloatRimLightNormalSource");
+                EditorGUIx.DropdownEnum(ContentRimLightNormalSource, matPropRimLightNormalSource, typeof(ERimLightNormalSource), MaterialEditor);
+                //仅“混合”模式显示 几何↔法线贴图 的混合强度滑条
+                if (matPropRimLightNormalSource.floatValue.Equals((float)ERimLightNormalSource.Blend))
+                {
+                    EditorGUI.indentLevel++;
+                    MaterialEditor.RangeProperty(GetMaterialProperty("_FloatRimLightNormalMapBlend"), "| 混合强度");
+                    EditorGUI.indentLevel--;
+                }
+                //法线来源用到法线贴图(法线贴图/混合)但未指定法线贴图时红字提示
+                if (!matPropRimLightNormalSource.floatValue.Equals((float)ERimLightNormalSource.VertexNormal) && !HasNormalMap)
+                    EditorGUIx.LabelError("⚠ 未指定法线贴图（见【法线贴图 NormalMap】面板），法线来源不生效");
+            }
             EditorGUILayout.Space();
 
             //子面板 暗部遮罩

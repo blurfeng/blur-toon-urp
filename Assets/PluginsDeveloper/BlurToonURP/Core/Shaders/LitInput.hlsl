@@ -94,6 +94,10 @@ half4 _ColorRimLightColor; //颜色
 half _FloatRimLightIntensity; //强度
 half _FloatRimLightInsideDistance; //内部距离
 half _ToggleRimLightHard; //开关 硬边缘
+half _FloatRimLightType; //边缘检测方式 0=菲涅尔(法线夹角) 1=深度差(屏幕空间深度)
+half _FloatRimLightDepthWidth; //深度差 采样宽度(像素, 1080p基准)
+half _FloatRimLightDepthThreshold; //深度差 阈值(世界单位, 抑制内部噪声)
+half _FloatRimLightDepthThresholdSoft; //深度差 阈值软过渡
 //法线来源（边缘光专属）
 half _FloatRimLightNormalSource; //法线来源 0=几何法线 1=法线贴图 2=混合
 half _FloatRimLightNormalMapBlend; //混合模式下 几何↔法线贴图 的混合强度

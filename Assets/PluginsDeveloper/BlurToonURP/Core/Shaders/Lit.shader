@@ -95,7 +95,12 @@ Shader "BlurToonURP/Lit"
         _FloatRimLightIntensity ("RimLight Intensity", Range(0, 1)) = 0.8 //强度
         _FloatRimLightInsideDistance ("RimLight Inside Distance", Range(0, 1)) = 0.18 //内部距离
         _ToggleRimLightHard ("RimLight Hard", Float) = 0 //开关 硬边缘
-        //法线来源（边缘光专属）
+        //边缘检测方式：菲涅尔(法线夹角) / 深度差(屏幕空间深度断层)。两种方式共用颜色/强度/内部距离/硬边缘/暗部遮罩/遮罩贴图。
+        _FloatRimLightType ("RimLight Type", Float) = 0 //边缘检测方式 0=菲涅尔 1=深度差
+        _FloatRimLightDepthWidth ("RimLight Depth Width", Range(0, 16)) = 2 //深度差 采样宽度(像素, 1080p基准)
+        _FloatRimLightDepthThreshold ("RimLight Depth Threshold", Range(0, 1)) = 0.1 //深度差 阈值(世界单位, 抑制内部噪声)
+        _FloatRimLightDepthThresholdSoft ("RimLight Depth Threshold Soft", Range(0, 1)) = 0.1 //深度差 阈值软过渡
+        //法线来源（边缘光专属，仅"菲涅尔"方式使用）
         _FloatRimLightNormalSource ("RimLight Normal Source", Float) = 0 //法线来源 0=几何法线 1=法线贴图 2=混合
         _FloatRimLightNormalMapBlend ("RimLight NormalMap Blend", Range(0, 1)) = 1 //混合模式下 几何↔法线贴图 的混合强度
         //暗部遮罩
@@ -267,6 +272,7 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _RIMLIGHT_SHADEMASK_ON
             #pragma shader_feature_local _RIMLIGHT_SHADEMASK_COLOR_ON
             #pragma shader_feature_local _RIMLIGHT_MASKMAP_ON
+            #pragma shader_feature_local _RIMLIGHT_DEPTH_ON //边缘光 深度差检测方式
             //材质捕获
             #pragma shader_feature_local _MATCAP_ON
             #pragma shader_feature_local _ _MATCAP_COLORBLEND_MULTIPLY _MATCAP_COLORBLEND_LERP //无=Additive / 乘算 / 插值
@@ -283,7 +289,9 @@ Shader "BlurToonURP/Lit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl"
-            
+            //场景深度图（_CameraDepthTexture / SampleSceneDepth）——深度差边缘光使用，需在 URP Asset 开启 Depth Texture
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+
 
             //顶点着色器 输入数据结构
             struct Attributes
@@ -356,6 +364,50 @@ Shader "BlurToonURP/Lit"
             #include "BlurFunction.hlsl"
             //阴影函数库（低质量PCF主光阴影采样等）
             #include "ShadowFunction.hlsl"
+
+            //==== 深度差边缘光 相关函数 ==================================================
+            //跨投影的线性眼空间深度：透视用 LinearEyeDepth；正交按 near..far 线性还原（兼容反向Z）。
+            float RimLinearEyeDepth(float rawDepth)
+            {
+                float persp = LinearEyeDepth(rawDepth, _ZBufferParams);
+                float ndc = rawDepth;
+                #if UNITY_REVERSED_Z
+                ndc = 1.0 - rawDepth;
+                #endif
+                float ortho = lerp(_ProjectionParams.y, _ProjectionParams.z, ndc); //near..far
+                return lerp(persp, ortho, unity_OrthoParams.w); //unity_OrthoParams.w: 1=正交 0=透视
+            }
+
+            //深度差边缘信号 ∈[0,1]：沿屏幕“水平方向”朝轮廓外侧偏移若干像素采样场景深度，
+            //偏移点比当前像素更远（外侧是更远的背景）时判定为朝向相机的轮廓边缘 → 输出边缘强度。
+            //当前像素深度取片元自身 positionCS.z（不依赖深度图是否已包含本物体），偏移点取 _CameraDepthTexture。
+            //参考 StarRailNPRShader GetRimLightMask，按本工程简化（无 modelScale/lightMap；采样宽度为屏幕像素、未做透视近大远小校正）。
+            //仅水平偏移：主要检测左右(竖直)轮廓，与参考实现一致；且规避 SV_Position 的 Y 轴方向在不同图形 API 下不一致（D3D 向下/GL 向上）导致的上下轮廓偏移方向错误。
+            //需在 URP Asset 开启 Depth Texture，否则 _CameraDepthTexture 无效、本方式无效果（可能整体发亮）。
+            float DepthDiffRimSignal(float4 positionCS, float3 normalDirWS, float widthPixels, float threshold, float thresholdSoft)
+            {
+                //当前像素线性眼空间深度
+                float depth = RimLinearEyeDepth(positionCS.z);
+
+                //采样偏移方向：屏幕水平方向指向轮廓外侧（取 view 空间法线 x 的符号；+x=右在 view 与像素空间一致，无 Y 翻转问题）。
+                //法线朝右(左)的一侧向右(左)偏移，正好跨过竖直轮廓采到外侧更远的背景。
+                float3 normalVS = TransformWorldToViewDir(normalDirWS, true);
+                float2 offsetDir = float2(sign(normalVS.x), 0.0);
+
+                //偏移像素量：以 1080p 为基准做分辨率无关，并限幅避免极端过宽
+                float rimWidth = min(widthPixels * (_ScreenParams.y / 1080.0), 128.0);
+
+                //用整数像素坐标 Load（与 SV_Position 同坐标系，规避不同平台 UV 上下翻转），并夹取到屏幕范围内。
+                //-0.5 将 SV_Position 的像素中心对齐到纹素索引。
+                int2 loadCoord = int2(positionCS.xy - 0.5 + offsetDir * rimWidth);
+                loadCoord = clamp(loadCoord, int2(0, 0), int2(_ScreenParams.xy) - 1);
+                float offsetDepth = RimLinearEyeDepth(LoadSceneDepth((uint2)loadCoord));
+
+                //偏移点更远(diff>0)才产生边缘；threshold 抑制内部深度噪声，thresholdSoft 控制柔和度
+                float diff = offsetDepth - depth;
+                return saturate(smoothstep(threshold, threshold + max(thresholdSoft, 1e-4), diff));
+            }
+            //============================================================================
 
             //顶点着色器
             Varyings vert(Attributes IN)
@@ -599,6 +651,16 @@ Shader "BlurToonURP/Lit"
                     lerp(_ColorRimLightColor.rgb, _ColorRimLightColor.rgb * colorLightBlend, _GlobalLightRimLightMixedIntensity),
                     _ToggleGlobalLightRimLight);
                 colorRimLight *= _ColorRimLightColor.a; //透明度
+
+                //边缘信号 rimLightNdotV ∈[0,1]（越靠近边缘越大）：两种检测方式二选一，之后的所有处理
+                //（强度/内部距离/硬边缘/暗部遮罩/暗部颜色/遮罩贴图）完全共用。
+                #if defined(_RIMLIGHT_DEPTH_ON)
+                //【深度差】屏幕空间沿“法线朝向”偏移采样场景深度，偏移点更远→朝相机的轮廓边缘→产生边缘光。
+                //需在 URP Asset 开启 Depth Texture（否则本方式无效果，甚至整体发亮）。深度方式不使用法线来源配置。
+                float rimLightNdotV = DepthDiffRimSignal(IN.positionCS, normalDirWS,
+                    _FloatRimLightDepthWidth, _FloatRimLightDepthThreshold, _FloatRimLightDepthThresholdSoft);
+                #else
+                //【菲涅尔】法线和视线夹角，越靠近边缘值越大。范围为[0,1]。
                 //法线方向来源（边缘光专属配置）：0=几何法线 1=法线贴图 2=混合。
                 //用 lerp+step 构建无分支选择器（与“描边类型”同款写法），避免关键词变体膨胀。
                 float3 normalDirRimBlend = normalize(lerp(normalDirWS, normalDirTex, _FloatRimLightNormalMapBlend));
@@ -606,10 +668,8 @@ Shader "BlurToonURP/Lit"
                     lerp(normalDirWS,
                         lerp(normalDirTex, normalDirRimBlend, step(1.5, _FloatRimLightNormalSource)),
                         step(0.5, _FloatRimLightNormalSource));
-
-                //计算边缘光系数，并按系数调整边缘光颜色
-                //法线和视线夹角，越靠近边缘值越大。范围为[0,1]。
                 float rimLightNdotV = saturate(1 - dot(normalDirOnRimLight, viewDirWS));
+                #endif
                 //强度控制。强度[0,1]映射到[3,0]，exp2为2的x次幂，范围[8,2]。pow为x的y次幂。x=rimLightNdotV小于1，所以y越小rimLightFactor越大。
                 //_FloatRimLightIntensity越大，rimLightFactor越大。rimLightFactor在(0,1]范围。
                 float rimLightFactor = pow(rimLightNdotV, exp2(lerp(3, 0, _FloatRimLightIntensity)));
