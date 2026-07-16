@@ -25,49 +25,52 @@ namespace BlurToonURP.EditorGUIx
         }
 
         /// <summary>
-        /// 无条件同步全部“关键词 / Pass 关键词”映射（每次 OnGUI 都执行，与各折叠面板内部的同步调用等价且幂等）。
-        /// <para>修复：原先这些同步只在对应折叠面板“展开”时才执行，新建材质在面板折叠状态下会出现
-        /// “界面开关(默认开) 与 关键词(默认关)”不一致，导致附加光照、外描边等特性静默失效，需手动展开面板才被“治好”。</para>
-        /// 注意：此处仅集中重放映射，各面板内保留原有同步调用不变；两者对同一材质状态产生相同结果。
+        /// 无条件把单个材质的全部“关键词 / Pass 关键词”映射与其开关/类型/贴图属性对齐（幂等，只依赖该材质自身状态）。
+        /// <para>OnGUI（逐个选中材质）与 ValidateMaterial（Unity 回调）都会调用：
+        /// 前者修复“同步只在折叠面板展开时才执行”，后者修复“同步只在打开 Inspector 时才执行”——
+        /// 脚本创建 / 批量导入 / 复制得到的材质也能保持“界面开关”与“关键词”一致，避免附加光照、外描边等特性静默失效。</para>
+        /// 注意：此处集中重放全部映射；各面板内保留的即时同步调用与此等价且幂等，二者对同一材质产生相同结果。
         /// </summary>
-        protected override void SyncKeywords()
+        protected override void SyncMaterialKeywords(Material material)
         {
+            if (material == null) return;
+
             //基础贴图
-            ApplyKeyword(MatKeywordShadeThresholdMap, "_ToggleShadeThresholdMap");
+            SetKeyword(material, MatKeywordShadeThresholdMap, "_ToggleShadeThresholdMap");
 
             //表面类型 / 裁剪（溶解）
-            ApplyKeyword(MatKeywordAlphaTest, "_ToggleAlphaClip");
-            ApplyKeyword(MatKeywordClipDither, "_IntClipType", (float)EClipType.Dither);
-            ApplyKeyword(MatKeywordClipAlpha, "_IntClipType", (float)EClipType.Alpha);
+            SetKeyword(material, MatKeywordAlphaTest, "_ToggleAlphaClip");
+            SetKeyword(material, MatKeywordClipDither, "_IntClipType", (float)EClipType.Dither);
+            SetKeyword(material, MatKeywordClipAlpha, "_IntClipType", (float)EClipType.Alpha);
 
             //高光
-            ApplyKeyword(MatKeywordHighLightOn, "_ToggleHighLight");
-            ApplyKeywordByTexture(MatKeywordHighLightMaskMapOn, "_TexHighLightMaskMap");
+            SetKeyword(material, MatKeywordHighLightOn, "_ToggleHighLight");
+            SetKeywordByTexture(material, MatKeywordHighLightMaskMapOn, "_TexHighLightMaskMap");
 
             //外描边（描边Pass开关驱动 _OUTLINE_ON）
-            ApplyKeywordByPass(MatKeywordOutlineOn, MatPassNameOutline);
-            ApplyKeyword(MatKeywordOutlineSameWidth, "_FloatOutlineWidthType", (float)EOutlineWidthType.Same);
-            ApplyKeyword(MatKeywordOutlineScaling, "_FloatOutlineWidthType", (float)EOutlineWidthType.Scaling);
-            ApplyKeywordByTexture(MatKeywordOutlineMapOn, "_TexOutlineMap");
+            SetKeywordByPass(material, MatKeywordOutlineOn, MatPassNameOutline);
+            SetKeyword(material, MatKeywordOutlineSameWidth, "_FloatOutlineWidthType", (float)EOutlineWidthType.Same);
+            SetKeyword(material, MatKeywordOutlineScaling, "_FloatOutlineWidthType", (float)EOutlineWidthType.Scaling);
+            SetKeywordByTexture(material, MatKeywordOutlineMapOn, "_TexOutlineMap");
 
             //边缘光
-            ApplyKeyword(MatKeywordRimLightOn, "_ToggleRimLight");
-            ApplyKeyword(MatKeywordRimLightShadeMaskOn, "_ToggleRimLightShadeMask");
-            ApplyKeyword(MatKeywordRimLightShadeMaskColorOn, "_ToggleRimLightShadeColor");
-            ApplyKeywordByTexture(MatKeywordRimLightMaskMapOn, "_TexRimLightMaskMap");
+            SetKeyword(material, MatKeywordRimLightOn, "_ToggleRimLight");
+            SetKeyword(material, MatKeywordRimLightShadeMaskOn, "_ToggleRimLightShadeMask");
+            SetKeyword(material, MatKeywordRimLightShadeMaskColorOn, "_ToggleRimLightShadeColor");
+            SetKeywordByTexture(material, MatKeywordRimLightMaskMapOn, "_TexRimLightMaskMap");
 
             //自发光
-            ApplyKeyword(MatKeywordEmissiveOn, "_ToggleEmissive");
-            ApplyKeyword(MatKeywordEmissiveAnim, "_ToggleEmissiveAnim");
+            SetKeyword(material, MatKeywordEmissiveOn, "_ToggleEmissive");
+            SetKeyword(material, MatKeywordEmissiveAnim, "_ToggleEmissiveAnim");
 
             //材质捕获
-            ApplyKeyword(MatKeywordMatCapOn, "_ToggleMatCap");
-            ApplyKeyword(MatKeywordMatCapColorBlendMultiply, "_FloatMatCapColorBlend", (float)EColorBlend.Multiply);
-            ApplyKeyword(MatKeywordMatCapColorBlendLerp, "_FloatMatCapColorBlend", (float)EColorBlend.Lerp);
+            SetKeyword(material, MatKeywordMatCapOn, "_ToggleMatCap");
+            SetKeyword(material, MatKeywordMatCapColorBlendMultiply, "_FloatMatCapColorBlend", (float)EColorBlend.Multiply);
+            SetKeyword(material, MatKeywordMatCapColorBlendLerp, "_FloatMatCapColorBlend", (float)EColorBlend.Lerp);
 
             //光照设置
-            ApplyKeyword(MatKeywordAddLightOn, "_ToggleAddLight");
-            ApplyKeyword(MatKeywordBuiltInLight, "_ToggleBuiltInLight");
+            SetKeyword(material, MatKeywordAddLightOn, "_ToggleAddLight");
+            SetKeyword(material, MatKeywordBuiltInLight, "_ToggleBuiltInLight");
         }
 
         #region BaseMap 基础贴图

@@ -43,7 +43,10 @@ namespace BlurToonURP.EditorGUIx
 
             //无条件同步关键词/Pass映射：不依赖折叠面板是否展开。
             //否则新建材质在面板折叠状态下，“界面开关(默认开)”与“关键词(默认关)”不一致，特性会静默失效，需手动展开面板才被“治好”。
-            SyncKeywords();
+            //逐个选中材质做 per-material 同步（支持多选编辑）；与 ValidateMaterial 复用同一逻辑。
+            if (Materials != null)
+                foreach (var m in Materials)
+                    if (m != null) SyncMaterialKeywords(m);
 
             EditorGUI.BeginChangeCheck();
 
@@ -51,6 +54,18 @@ namespace BlurToonURP.EditorGUIx
 
             if (EditorGUI.EndChangeCheck())
                 materialEditor.PropertiesChanged();
+        }
+
+        /// <summary>
+        /// Unity 在“材质被创建/加载/属性变更”时回调，即使从未打开该材质的 Inspector 也会触发。
+        /// <para>在此无条件重放“关键词 / Pass 关键词”映射，修复原先“只有打开并刷新 Inspector 才会同步关键词”的问题：
+        /// 脚本创建、批量导入、AssetDatabase 复制或直接改属性得到的材质，其关键词也能与开关属性保持一致，
+        /// 无需手动逐个点开材质面板“治好”。与 OnGUI 复用同一套 per-material 同步逻辑（<see cref="SyncMaterialKeywords"/>）。</para>
+        /// </summary>
+        public override void ValidateMaterial(Material material)
+        {
+            base.ValidateMaterial(material);
+            SyncMaterialKeywords(material);
         }
 
         /// <summary>
@@ -62,11 +77,12 @@ namespace BlurToonURP.EditorGUIx
         }
 
         /// <summary>
-        /// 子类重写：无条件同步材质的“关键词/Pass 关键词”映射。
-        /// <para>每次 OnGUI 都会调用，与各折叠面板内部的同步调用等价且幂等；
-        /// 用于修复“关键词同步只在对应折叠面板展开时才执行”，导致新建/未展开材质开关与关键词不一致的问题。</para>
+        /// 子类重写：把单个材质的“开关/类型/贴图”属性无条件同步为对应的“关键词 / Pass 关键词”映射。
+        /// <para>OnGUI（逐个选中材质）与 ValidateMaterial（Unity 回调的单个材质）都会调用，须幂等，
+        /// 且只依赖传入的 <paramref name="material"/> 自身状态、不读取 GUI 上下文，以便无 Inspector 时也能正确执行。
+        /// 用于修复“关键词同步只在折叠面板展开时才执行 / 只在打开 Inspector 时才执行”导致的开关与关键词不一致。</para>
         /// </summary>
-        protected virtual void SyncKeywords()
+        protected virtual void SyncMaterialKeywords(Material material)
         {
 
         }
@@ -110,25 +126,55 @@ namespace BlurToonURP.EditorGUIx
             return matP;
         }
 
-        #region 多选编辑辅助方法（关键词/Pass 需手动作用到全部选中材质）
+        #region 关键词/Pass 同步辅助方法
+
+        //--- 单材质版：只依赖传入材质自身状态，OnGUI 与 ValidateMaterial 共用，务必保持幂等 ---
 
         /// <summary>
-        /// 按“每个材质自身的开关浮点属性值”将关键词应用到所有选中材质。
-        /// 支持多选批量设置，同时保留各材质自身的差异（不会用激活材质覆盖其它材质）。
+        /// 按材质自身“开关浮点属性值”启用/禁用关键词。
         /// </summary>
+        /// <param name="material">目标材质</param>
         /// <param name="keyword">要开关的关键词</param>
         /// <param name="toggleFloatProperty">驱动该关键词的浮点属性名（如 "_ToggleRimLight"）</param>
         /// <param name="onValue">开启对应的属性值，默认 1</param>
+        protected static void SetKeyword(Material material, string keyword, string toggleFloatProperty, float onValue = 1f)
+        {
+            if (material == null) return;
+            bool on = material.HasProperty(toggleFloatProperty) && Mathf.Approximately(material.GetFloat(toggleFloatProperty), onValue);
+            if (on) material.EnableKeyword(keyword);
+            else material.DisableKeyword(keyword);
+        }
+
+        /// <summary>
+        /// 按材质自身“Pass 开关状态”启用/禁用关键词。
+        /// </summary>
+        protected static void SetKeywordByPass(Material material, string keyword, string passName)
+        {
+            if (material == null) return;
+            if (material.GetShaderPassEnabled(passName)) material.EnableKeyword(keyword);
+            else material.DisableKeyword(keyword);
+        }
+
+        /// <summary>
+        /// 按材质自身“是否指定了该贴图”启用/禁用关键词。
+        /// </summary>
+        protected static void SetKeywordByTexture(Material material, string keyword, string textureProperty)
+        {
+            if (material == null) return;
+            if (material.HasProperty(textureProperty) && material.GetTexture(textureProperty) != null) material.EnableKeyword(keyword);
+            else material.DisableKeyword(keyword);
+        }
+
+        //--- 多选版：作用到全部选中材质，供各折叠面板即时同步用（保留各材质自身差异，不会用激活材质覆盖其它） ---
+
+        /// <summary>
+        /// 按“每个材质自身的开关浮点属性值”将关键词应用到所有选中材质。
+        /// </summary>
         protected void ApplyKeyword(string keyword, string toggleFloatProperty, float onValue = 1f)
         {
             if (Materials == null) return;
             foreach (var m in Materials)
-            {
-                if (m == null) continue;
-                bool on = m.HasProperty(toggleFloatProperty) && Mathf.Approximately(m.GetFloat(toggleFloatProperty), onValue);
-                if (on) m.EnableKeyword(keyword);
-                else m.DisableKeyword(keyword);
-            }
+                SetKeyword(m, keyword, toggleFloatProperty, onValue);
         }
 
         /// <summary>
@@ -138,11 +184,7 @@ namespace BlurToonURP.EditorGUIx
         {
             if (Materials == null) return;
             foreach (var m in Materials)
-            {
-                if (m == null) continue;
-                if (m.GetShaderPassEnabled(passName)) m.EnableKeyword(keyword);
-                else m.DisableKeyword(keyword);
-            }
+                SetKeywordByPass(m, keyword, passName);
         }
 
         /// <summary>
@@ -152,11 +194,7 @@ namespace BlurToonURP.EditorGUIx
         {
             if (Materials == null) return;
             foreach (var m in Materials)
-            {
-                if (m == null) continue;
-                if (m.HasProperty(textureProperty) && m.GetTexture(textureProperty) != null) m.EnableKeyword(keyword);
-                else m.DisableKeyword(keyword);
-            }
+                SetKeywordByTexture(m, keyword, textureProperty);
         }
 
         #endregion
