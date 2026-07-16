@@ -180,6 +180,7 @@ half _ToggleShadowTerminatorSmooth; //开关 交界柔化(0=直接用阴影图/�
 half _FloatShadowTerminatorSmooth; //交界柔化值（几何平滑自阴影包络的过渡半宽，越大交界越平滑）
 half _FloatSelfShadowDepthBias; //自阴影 深度偏移（沿光方向，增大减少自阴影粉刺）
 half _FloatSelfShadowNormalBias; //自阴影 法线偏移（沿法线内缩，按1-NoL坡度缩放，压交界碎裂）
+half _ToggleShadowLowQualityPCF; //开关 低质量PCF（强制低质量PCF重采样主光阴影，减角色尺度阴影透视锯齿）
 
 //内置光照
 float _FloatBuiltInLightAxisX; //光照方向X轴

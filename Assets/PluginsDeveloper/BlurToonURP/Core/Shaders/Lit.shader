@@ -190,6 +190,8 @@ Shader "BlurToonURP/Lit"
         //自阴影偏移（在URP全局阴影bias之上，对易出现自阴影粉刺/交界碎裂的模型单独补偿；默认0=不额外偏移，行为不变）
         _FloatSelfShadowDepthBias ("SelfShadow DepthBias", Range(0, 1)) = 0 //沿光方向深度偏移，增大减少自阴影粉刺（过大漏光）
         _FloatSelfShadowNormalBias ("SelfShadow NormalBias", Range(0, 1)) = 0 //沿法线内缩（按1-NoL坡度缩放），增大压制明暗交界碎裂
+        //低质量PCF：强制用低质量PCF核重采样主光阴影，减少角色尺度下的阴影透视锯齿（默认0=用URP原采样，不影响原效果）
+        _ToggleShadowLowQualityPCF ("Shadow LowQuality PCF Toggle", Float) = 0
 
         //内置光照
         _ToggleBuiltInLight ("BuiltInLight Toggle", Float ) = 0 //开关 内置光照
@@ -244,7 +246,9 @@ Shader "BlurToonURP/Lit"
             
             // URP 主光阴影接收：补齐后 shadowAttenuation 才会采样真实阴影图（本体接收场景投射阴影）
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            //URP 14 软阴影：质量由 _SHADOWS_SOFT_LOW/_MEDIUM/_HIGH 关键词区分（管线开启软阴影时会禁用通用 _SHADOWS_SOFT 只启用对应质量）。
+            //必须声明全部变体，否则管线启用如 _SHADOWS_SOFT_MEDIUM 时本 Shader 无匹配变体 → 回退到无软阴影 → 即使勾选软阴影也是硬阴影。
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             // Forward+ 渲染路径：附加光照改走聚簇(Cluster)光照循环，需此关键词让 LIGHT_LOOP_BEGIN 切换到聚簇迭代；
             // 缺失时在 Forward+ 渲染器下 GetAdditionalLightsCount 返回 0，附加光照(点光/聚光高光)会静默失效。
             #pragma multi_compile _ _FORWARD_PLUS
@@ -350,7 +354,9 @@ Shader "BlurToonURP/Lit"
             #include "LitInput.hlsl"
             //公共函数库（RotateUV 等）
             #include "BlurFunction.hlsl"
-            
+            //阴影函数库（低质量PCF主光阴影采样等）
+            #include "ShadowFunction.hlsl"
+
             //顶点着色器
             Varyings vert(Attributes IN)
             {
@@ -424,7 +430,11 @@ Shader "BlurToonURP/Lit"
 
                 //实时光照
                 //主光照
-                Light lightMain = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
+                float4 mainLightShadowCoord = TransformWorldToShadowCoord(IN.positionWS);
+                Light lightMain = GetMainLight(mainLightShadowCoord);
+                //可选：用低质量PCF重采样主光阴影(更贴角色尺度、减透视锯齿)；默认关(0)时保持URP原采样
+                if (_ToggleShadowLowQualityPCF > 0.5)
+                    lightMain.shadowAttenuation = MainLightShadowLowQualityPCF(mainLightShadowCoord, IN.positionWS);
                 half3 colorLightMain = lightMain.color * lightMain.distanceAttenuation;
                 //阴影衰减
                 float shadowAttenuation = saturate(lightMain.shadowAttenuation - _FloatShadowIntensity);
@@ -1155,7 +1165,9 @@ Shader "BlurToonURP/Lit"
             
             // URP 主光阴影接收（描边受阴影影响，在片元采样真实阴影图）
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            //URP 14 软阴影：质量由 _SHADOWS_SOFT_LOW/_MEDIUM/_HIGH 关键词区分（管线开启软阴影时会禁用通用 _SHADOWS_SOFT 只启用对应质量）。
+            //必须声明全部变体，否则管线启用如 _SHADOWS_SOFT_MEDIUM 时本 Shader 无匹配变体 → 回退到无软阴影 → 即使勾选软阴影也是硬阴影。
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
 
             // BlurToonURP Keywords
             //外描边
@@ -1177,6 +1189,8 @@ Shader "BlurToonURP/Lit"
             
             //材质属性统一在 LitInput.hlsl 中声明（保证与其它 Pass 的 UnityPerMaterial 完全一致，兼容 SRP Batcher）
             #include "LitInput.hlsl"
+            //阴影函数库（低质量PCF主光阴影采样等）
+            #include "ShadowFunction.hlsl"
 
             //描边纹理贴图（描边专用纹理，用于给描边着色/图案，仅在指定贴图后启用关键词）
             #if defined(_OUTLINE_MAP_ON)
@@ -1305,6 +1319,9 @@ Shader "BlurToonURP/Lit"
                 //-------- 描边受光照与阴影影响 -------- Start
                 //主光照（带真实投射阴影，依赖本Pass补齐的 _MAIN_LIGHT_SHADOWS 关键词）
                 Light mainLight = GetMainLight(IN.shadowCoord);
+                //可选：低质量PCF重采样主光阴影，与基础Pass一致
+                if (_ToggleShadowLowQualityPCF > 0.5)
+                    mainLight.shadowAttenuation = MainLightShadowLowQualityPCF(IN.shadowCoord, IN.positionWS);
                 half3 colorLightMain = mainLight.color * mainLight.distanceAttenuation;
                 //阴影衰减：与基础Pass一致，减去阴影强度偏移，并受“阴影接收”开关控制
                 half shadowAttenuation = lerp(1, saturate(mainLight.shadowAttenuation - _FloatShadowIntensity), _ToggleShadowReceive);
