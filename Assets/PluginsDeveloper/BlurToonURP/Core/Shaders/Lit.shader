@@ -187,7 +187,10 @@ Shader "BlurToonURP/Lit"
         _ToggleShadowTerminatorSmooth ("Shadow Terminator Smooth Toggle", Float) = 0
         //交界柔化值(仅交界柔化开启时生效)：几何平滑自阴影包络的过渡半宽。越大交界越平滑(几何主导范围越大)，越小交界越锐、投射阴影越贴近交界。任何值都不会出现亮缝。
         _FloatShadowTerminatorSmooth ("Shadow Terminator Smooth", Range(0.02, 0.5)) = 0.1
-        
+        //自阴影偏移（在URP全局阴影bias之上，对易出现自阴影粉刺/交界碎裂的模型单独补偿；默认0=不额外偏移，行为不变）
+        _FloatSelfShadowDepthBias ("SelfShadow DepthBias", Range(0, 1)) = 0 //沿光方向深度偏移，增大减少自阴影粉刺（过大漏光）
+        _FloatSelfShadowNormalBias ("SelfShadow NormalBias", Range(0, 1)) = 0 //沿法线内缩（按1-NoL坡度缩放），增大压制明暗交界碎裂
+
         //内置光照
         _ToggleBuiltInLight ("BuiltInLight Toggle", Float ) = 0 //开关 内置光照
         _FloatBuiltInLightAxisX ("BuiltInLight XAxis", Range(-1, 1)) = 1
@@ -842,6 +845,19 @@ Shader "BlurToonURP/Lit"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
+            //逐材质自阴影偏移：在 URP 全局阴影 bias 之上，对易出现自阴影粉刺(acne)/交界碎裂的模型做额外补偿。
+            //depthBias 沿光方向推动 caster(减 acne)；normalBias 沿法线内缩并按 (1-NoL) 坡度缩放(掠射角最强，压交界碎裂)。
+            //两者默认 0=不额外偏移，与原行为完全一致；0.02 为世界单位缩放，使 [0,1] 滑条落在角色尺度可用区间。
+            float3 ApplySelfShadowBias(float3 positionWS, float3 normalWS, float3 lightDirection)
+            {
+                const float biasScale = 0.02;
+                float invNdotL = 1.0 - saturate(dot(lightDirection, normalWS));
+                float normalScale = invNdotL * _FloatSelfShadowNormalBias * biasScale;
+                positionWS += lightDirection * (_FloatSelfShadowDepthBias * biasScale); //沿光方向(深度偏移)
+                positionWS -= normalWS * normalScale;                                   //沿法线内缩(坡度缩放)
+                return positionWS;
+            }
+
             //计算应用了阴影偏移(法线偏移/深度偏移)后的裁剪空间位置，避免阴影粉刺(Shadow Acne)与漏光(Peter Panning)
             float4 GetShadowPositionHClip(Attributes IN)
             {
@@ -855,8 +871,10 @@ Shader "BlurToonURP/Lit"
                 float3 lightDirectionWS = _LightDirection;
                 #endif
 
-                //应用阴影偏移后转换到裁剪空间
-                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+                //应用阴影偏移后转换到裁剪空间：先 URP 标准 bias(受光源/阴影设置驱动)，再叠加逐材质自阴影偏移
+                float3 positionBiasedWS = ApplyShadowBias(positionWS, normalWS, lightDirectionWS);
+                positionBiasedWS = ApplySelfShadowBias(positionBiasedWS, normalWS, lightDirectionWS);
+                float4 positionCS = TransformWorldToHClip(positionBiasedWS);
 
                 //将深度限制在近裁剪面，防止阴影被近裁剪面裁掉
                 #if UNITY_REVERSED_Z
