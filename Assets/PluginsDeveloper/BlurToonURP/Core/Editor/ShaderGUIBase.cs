@@ -41,6 +41,10 @@ namespace BlurToonURP.EditorGUIx
                 Materials[i] = targets[i] as Material;
             RefreshMatProperty(properties);
 
+            //无条件同步关键词/Pass映射：不依赖折叠面板是否展开。
+            //否则新建材质在面板折叠状态下，“界面开关(默认开)”与“关键词(默认关)”不一致，特性会静默失效，需手动展开面板才被“治好”。
+            SyncKeywords();
+
             EditorGUI.BeginChangeCheck();
 
             OnGUIDraw();
@@ -53,6 +57,16 @@ namespace BlurToonURP.EditorGUIx
         /// 子类重写此方法用于绘制GUI
         /// </summary>
         protected virtual void OnGUIDraw()
+        {
+
+        }
+
+        /// <summary>
+        /// 子类重写：无条件同步材质的“关键词/Pass 关键词”映射。
+        /// <para>每次 OnGUI 都会调用，与各折叠面板内部的同步调用等价且幂等；
+        /// 用于修复“关键词同步只在对应折叠面板展开时才执行”，导致新建/未展开材质开关与关键词不一致的问题。</para>
+        /// </summary>
+        protected virtual void SyncKeywords()
         {
 
         }

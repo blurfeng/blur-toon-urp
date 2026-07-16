@@ -166,7 +166,7 @@ Shader "BlurToonURP/Lit"
         _ToggleGlobalLightBaseShade1 ("GlobalLight BaseShade1 Toggle", Float) = 1 //暗部1
         _GlobalLightBaseShade1MixedIntensity ("GlobalLight BaseShade1 Mixed Intensity", Range(0.001, 1)) = 0.5//暗部1和光照颜色的混合强度 0-1
         _ToggleGlobalLightBaseShade2 ("GlobalLight BaseShade2 Toggle", Float) = 1 //暗部2
-        _GlobalLightBaseShade2MixedIntensity ("GlobalLight BaseShade1 Mixed Intensity", Range(0.001, 1)) = 0.5//暗部2和光照颜色的混合强度 0-1
+        _GlobalLightBaseShade2MixedIntensity ("GlobalLight BaseShade2 Mixed Intensity", Range(0.001, 1)) = 0.5//暗部2和光照颜色的混合强度 0-1
         _ToggleGlobalLightHighLight ("GlobalLight HighLight Toggle", Float) = 1 //高光
         _ToggleGlobalLightRimLight ("GlobalLight RimLight Toggle", Float) = 1 //边缘光
         _GlobalLightRimLightMixedIntensity ("GlobalLight RimLight Mixed Intensity", Range(0.001, 1)) = 0.5//边缘光和光照颜色的混合强度 0-1
@@ -242,6 +242,9 @@ Shader "BlurToonURP/Lit"
             // URP 主光阴影接收：补齐后 shadowAttenuation 才会采样真实阴影图（本体接收场景投射阴影）
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            // Forward+ 渲染路径：附加光照改走聚簇(Cluster)光照循环，需此关键词让 LIGHT_LOOP_BEGIN 切换到聚簇迭代；
+            // 缺失时在 Forward+ 渲染器下 GetAdditionalLightsCount 返回 0，附加光照(点光/聚光高光)会静默失效。
+            #pragma multi_compile _ _FORWARD_PLUS
 
             // BlurToonURP Keywords
             #pragma shader_feature_local _ALPHATEST_ON //透明度裁切
@@ -300,7 +303,6 @@ Shader "BlurToonURP/Lit"
 
                 float3 normalWS : TEXCOORD2;
                 float4 tangentWS : TEXCOORD3;
-                float3 viewDirWS : TEXCOORD4;
 
                 //GPUInstance功能相关宏 用于传递ID数据
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -366,13 +368,6 @@ Shader "BlurToonURP/Lit"
                 OUT.normalWS = normalInput.normalWS;
                 real sign = IN.tangentOS.w * GetOddNegativeScale();
                 OUT.tangentWS = half4(normalInput.tangentWS.xyz, sign);
-                //启用宏时，Unity会自动在顶点和片元着色器之间插值传递世界空间中的顶点位置，使其可以在片元着色器中直接使用。
-                //否则自行计算
-                #if defined(REQUIRES_TANGENT_SPACE_VIEW_DIR_INTERPOLATOR)
-                half3 viewDirWS = GetWorldSpaceNormalizeViewDir(vertexInput.positionWS);
-                half3 viewDirTS = GetViewDirectionTangentSpace(tangentWS, OUT.normalWS, viewDirWS);
-                OUT.viewDirTS = viewDirTS;
-                #endif
 
                 return OUT;
             }
@@ -412,7 +407,9 @@ Shader "BlurToonURP/Lit"
                 //法线贴图采样
                 float3 normalDirTex = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, TRANSFORM_TEX(uv, _BumpMap)), _BumpScale);
                 //将法线贴图中获取的法线转换至世界空间
-                float3 binormalWS = cross(normalDirWS, normalDirTex.xyz) * IN.tangentWS.w;//世界空间的副法线
+                //副法线必须由“世界法线 × 世界切线”叉乘得到（tangentWS.w 已含奇偶缩放符号）；
+                //切勿用刚采样出的切线空间法线 normalDirTex 参与叉乘，否则 TBN 中间轴与 UV 的 V 方向脱钩，法线细节朝向错乱。
+                float3 binormalWS = cross(normalDirWS, IN.tangentWS.xyz) * IN.tangentWS.w; //世界空间的副法线
                 normalDirTex = normalize(mul(normalDirTex, half3x3(IN.tangentWS.xyz, binormalWS, normalDirWS)));
                 //-------- NormalMap 法线贴图 -------- End
 
@@ -438,6 +435,13 @@ Shader "BlurToonURP/Lit"
                 #if defined(_ADDLIGHT_ON)
                 half3 colorLightAdd = half3(0, 0, 0); //必须初始化为0，否则会累加到未定义值上
                 uint lightsCount = GetAdditionalLightsCount();
+                //Forward+ 下 LIGHT_LOOP_BEGIN 宏会引用 inputData 的屏幕UV/世界坐标来做聚簇光照迭代，需在此提供；
+                //经典 Forward 路径不编译此分支（USE_FORWARD_PLUS 未定义时为0），保持原有行为。
+                #if USE_FORWARD_PLUS
+                InputData inputData = (InputData)0;
+                inputData.positionWS = IN.positionWS;
+                inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(IN.positionCS);
+                #endif
                 LIGHT_LOOP_BEGIN(lightsCount)
                     Light light = GetAdditionalLight(lightIndex, IN.positionWS);
                     //各附加光照自身方向的半兰伯特，实现方向着色（面向光的一侧更亮，背光侧更暗）
@@ -600,7 +604,7 @@ Shader "BlurToonURP/Lit"
                 //距离计算 & 硬边缘开关。
                 //_FloatRimLightInsideDistance范围为[0,1]，值越大边缘光范围越窄，为1时没有边缘光。rimLightFactor在(0,1]范围。
                 rimLightFactor = saturate(
-                    lerp((rimLightFactor - _FloatRimLightInsideDistance) / (1 - _FloatRimLightInsideDistance),
+                    lerp((rimLightFactor - _FloatRimLightInsideDistance) / max(1 - _FloatRimLightInsideDistance, 1e-4),
                         step(_FloatRimLightInsideDistance, rimLightFactor), _ToggleRimLightHard));
                 
                 //---- 暗部遮罩 ---- 使用，这能防止阴影部分不自然的发亮
@@ -632,7 +636,7 @@ Shader "BlurToonURP/Lit"
                     float rimLightShadeFactor = pow(rimLightNdotV, exp2(lerp(3, 0, _FloatRimLightShadeColorIntensity)));
                     //距离计算 & 硬边缘开关。
                     rimLightShadeFactor = saturate(
-                        lerp((rimLightShadeFactor - _FloatRimLightInsideDistance) / (1 - _FloatRimLightInsideDistance),
+                        lerp((rimLightShadeFactor - _FloatRimLightInsideDistance) / max(1 - _FloatRimLightInsideDistance, 1e-4),
                             step(_FloatRimLightInsideDistance, rimLightShadeFactor), _ToggleRimLightShadeColorHard));
                     //暗部遮罩强度 计算
                     //遮罩强度越大shadeMaskFactor越接近0，暗部颜色越明显。使用rimLightShadeIntensity值判断使暗部颜色只对暗部生效。
@@ -666,7 +670,9 @@ Shader "BlurToonURP/Lit"
                 //根据开关使用顶点法线或法线贴图法线
                 float3 normalDirOnMatCap = lerp(normalDirWS, normalDirTex, _ToggleNormalMapOnMatCap);
                 //法线转换到观察空间得到 MatCap 采样 UV（-1~1 映射到 0~1）
-                float2 uvMatCap = mul(UNITY_MATRIX_V, float4(normalDirOnMatCap, 1)).xy;
+                //法线是“方向向量”，必须用 w=0 变换：w=1 会把视图矩阵的平移列（世界原点在视空间的位置）也加进来，
+                //当模型偏离世界原点或相机不对准原点时会把 UV 推出 [0,1]，导致 MatCap 塌成一块边缘纯色。
+                float2 uvMatCap = mul(UNITY_MATRIX_V, float4(normalDirOnMatCap, 0)).xy;
                 uvMatCap = uvMatCap * 0.5 + 0.5;
                 //UV 旋转
                 uvMatCap = RotateUV(uvMatCap, _FloatMatCapRotate * 3.141592654, float2(0.5, 0.5));
@@ -704,7 +710,8 @@ Shader "BlurToonURP/Lit"
                 #if defined(_EMISSIVE_ANIM)
                     //◆ 动画模式
                     //UV比例模式：FullMap（uv）↔ MatCap（观察空间法线，球面映射）
-                    float2 uvEmissiveMatCap = mul(UNITY_MATRIX_V, float4(normalDirWS, 1)).xy;
+                    //方向向量用 w=0，避免叠加视图矩阵平移列而使 UV 偏移（同基础 MatCap）
+                    float2 uvEmissiveMatCap = mul(UNITY_MATRIX_V, float4(normalDirWS, 0)).xy;
                     uvEmissiveMatCap = uvEmissiveMatCap * 0.5 + 0.5;
                     float2 uvEmissive = lerp(uv, uvEmissiveMatCap, _FloatEmissiveAnimUVType);
 
@@ -786,6 +793,8 @@ Shader "BlurToonURP/Lit"
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             // 透明度裁切（镂空处不投射阴影）
             #pragma shader_feature_local _ALPHATEST_ON
+            // 裁剪（溶解）：镂空处不投射阴影，使投影轮廓与可见网格一致
+            #pragma shader_feature_local _ _CLIP_DITHER _CLIP_ALPHA
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -799,6 +808,11 @@ Shader "BlurToonURP/Lit"
             //透明度裁切需采样基础贴图 Alpha：SurfaceInput 提供 _BaseMap，LitInput 提供 _BaseColor/_Cutoff 等材质属性
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
             #include "LitInput.hlsl"
+
+            //裁剪遮罩贴图（仅挖孔/透明度模式启用，使投影轮廓与本体溶解同步）
+            #if defined(_CLIP_DITHER) || defined(_CLIP_ALPHA)
+            TEXTURE2D(_TexClipMaskMap); SAMPLER(sampler_TexClipMaskMap);
+            #endif
 
             //由URP阴影渲染流程设置的全局变量
             #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
@@ -875,6 +889,16 @@ Shader "BlurToonURP/Lit"
                 clip(alpha - _Cutoff);
                 #endif
 
+                //裁剪（溶解）：与本体一致，溶解处不投射阴影（挖孔硬剔除；透明度模式按裁剪值硬剔除，使投影轮廓与可见网格一致）
+                #if defined(_CLIP_DITHER)
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                clip(clipMask - _FloatClipIntensity);
+                #elif defined(_CLIP_ALPHA)
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                half clipAlpha = lerp(clipMask, clipMask * (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a), _ToggleClipTransBaseMapAlpha) - _FloatClipTransIntensity;
+                clip(clipAlpha);
+                #endif
+
                 //阴影Pass只需要深度，不输出颜色
                 return 0;
             }
@@ -902,6 +926,8 @@ Shader "BlurToonURP/Lit"
             #pragma multi_compile_instancing
             // 透明度裁切（镂空处不写入深度）
             #pragma shader_feature_local _ALPHATEST_ON
+            // 裁剪（溶解）：镂空处不写入深度，使深度轮廓与可见网格一致
+            #pragma shader_feature_local _ _CLIP_DITHER _CLIP_ALPHA
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -912,6 +938,11 @@ Shader "BlurToonURP/Lit"
             //透明度裁切需采样基础贴图 Alpha：SurfaceInput 提供 _BaseMap，LitInput 提供 _BaseColor/_Cutoff 等材质属性
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
             #include "LitInput.hlsl"
+
+            //裁剪遮罩贴图（仅挖孔/透明度模式启用，使深度轮廓与本体溶解同步）
+            #if defined(_CLIP_DITHER) || defined(_CLIP_ALPHA)
+            TEXTURE2D(_TexClipMaskMap); SAMPLER(sampler_TexClipMaskMap);
+            #endif
 
             //顶点着色器 输入数据结构
             struct Attributes
@@ -957,6 +988,16 @@ Shader "BlurToonURP/Lit"
                 clip(alpha - _Cutoff);
                 #endif
 
+                //裁剪（溶解）：与本体一致，溶解处不写入深度，使深度轮廓与可见网格一致
+                #if defined(_CLIP_DITHER)
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                clip(clipMask - _FloatClipIntensity);
+                #elif defined(_CLIP_ALPHA)
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                half clipAlpha = lerp(clipMask, clipMask * (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a), _ToggleClipTransBaseMapAlpha) - _FloatClipTransIntensity;
+                clip(clipAlpha);
+                #endif
+
                 //深度Pass只需要写入深度
                 return IN.positionCS.z;
             }
@@ -982,6 +1023,8 @@ Shader "BlurToonURP/Lit"
             #pragma multi_compile_instancing
             // 透明度裁切（镂空处不写入深度/法线）
             #pragma shader_feature_local _ALPHATEST_ON
+            // 裁剪（溶解）：镂空处不写入深度/法线，使深度法线轮廓与可见网格一致
+            #pragma shader_feature_local _ _CLIP_DITHER _CLIP_ALPHA
             // Keywords ------------------------------------- End
 
             #pragma vertex vert //顶点着色器
@@ -992,6 +1035,11 @@ Shader "BlurToonURP/Lit"
             //透明度裁切需采样基础贴图 Alpha：SurfaceInput 提供 _BaseMap，LitInput 提供 _BaseColor/_Cutoff 等材质属性
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
             #include "LitInput.hlsl"
+
+            //裁剪遮罩贴图（仅挖孔/透明度模式启用，使深度法线轮廓与本体溶解同步）
+            #if defined(_CLIP_DITHER) || defined(_CLIP_ALPHA)
+            TEXTURE2D(_TexClipMaskMap); SAMPLER(sampler_TexClipMaskMap);
+            #endif
 
             //顶点着色器 输入数据结构
             struct Attributes
@@ -1042,6 +1090,16 @@ Shader "BlurToonURP/Lit"
                 #if defined(_ALPHATEST_ON)
                 half alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a;
                 clip(alpha - _Cutoff);
+                #endif
+
+                //裁剪（溶解）：与本体一致，溶解处不写入深度/法线，使深度法线轮廓与可见网格一致
+                #if defined(_CLIP_DITHER)
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                clip(clipMask - _FloatClipIntensity);
+                #elif defined(_CLIP_ALPHA)
+                half clipMask = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
+                half clipAlpha = lerp(clipMask, clipMask * (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a * _BaseColor.a), _ToggleClipTransBaseMapAlpha) - _FloatClipTransIntensity;
+                clip(clipAlpha);
                 #endif
 
                 //输出世界空间法线到相机法线图
@@ -1178,7 +1236,8 @@ Shader "BlurToonURP/Lit"
                     //沿法线方向外扩
                     OUT.positionCS = TransformWorldToHClip(OUT.positionWS.xyz + moveDir * outlineWidth);
                 #elif defined(_OUTLINE_WIDTH_SCALING) //变化
-                    half3 vertDir = normalize(IN.positionOS).xyz;
+                    //顶点相对模型中心的方向需转到世界空间，才能与世界空间的外扩方向 moveDir 一致比较（否则物体旋转会改变描边粗细分布）
+                    half3 vertDir = TransformObjectToWorldDir(IN.positionOS.xyz);
                     half signVertNormal = dot(vertDir, moveDir) + 0.3;
                     OUT.positionCS = TransformWorldToHClip(OUT.positionWS.xyz + moveDir * outlineWidth * signVertNormal);
                 #endif
@@ -1212,7 +1271,9 @@ Shader "BlurToonURP/Lit"
                 clip(clipMaskOutline - _FloatClipIntensity);
                 #elif defined(_CLIP_ALPHA)
                 half clipMaskOutline = SAMPLE_TEXTURE2D(_TexClipMaskMap, sampler_TexClipMaskMap, TRANSFORM_TEX(IN.uv, _TexClipMaskMap)).r;
-                clip(clipMaskOutline - _FloatClipTransIntensity);
+                //与本体一致：可叠加基础贴图A通道后再减透明度裁剪强度（_ToggleClipTransBaseMapAlpha 关时退化为原行为）
+                half clipAlphaOutline = lerp(clipMaskOutline, clipMaskOutline * (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, TRANSFORM_TEX(IN.uv, _BaseMap)).a * _BaseColor.a), _ToggleClipTransBaseMapAlpha) - _FloatClipTransIntensity;
+                clip(clipAlphaOutline);
                 #endif
 
                 //外描边颜色和光照色混合

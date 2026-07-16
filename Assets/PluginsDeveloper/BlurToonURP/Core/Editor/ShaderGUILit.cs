@@ -24,6 +24,52 @@ namespace BlurToonURP.EditorGUIx
             
         }
 
+        /// <summary>
+        /// 无条件同步全部“关键词 / Pass 关键词”映射（每次 OnGUI 都执行，与各折叠面板内部的同步调用等价且幂等）。
+        /// <para>修复：原先这些同步只在对应折叠面板“展开”时才执行，新建材质在面板折叠状态下会出现
+        /// “界面开关(默认开) 与 关键词(默认关)”不一致，导致附加光照、外描边等特性静默失效，需手动展开面板才被“治好”。</para>
+        /// 注意：此处仅集中重放映射，各面板内保留原有同步调用不变；两者对同一材质状态产生相同结果。
+        /// </summary>
+        protected override void SyncKeywords()
+        {
+            //基础贴图
+            ApplyKeyword(MatKeywordShadeThresholdMap, "_ToggleShadeThresholdMap");
+
+            //表面类型 / 裁剪（溶解）
+            ApplyKeyword(MatKeywordAlphaTest, "_ToggleAlphaClip");
+            ApplyKeyword(MatKeywordClipDither, "_IntClipType", (float)EClipType.Dither);
+            ApplyKeyword(MatKeywordClipAlpha, "_IntClipType", (float)EClipType.Alpha);
+
+            //高光
+            ApplyKeyword(MatKeywordHighLightOn, "_ToggleHighLight");
+            ApplyKeywordByTexture(MatKeywordHighLightMaskMapOn, "_TexHighLightMaskMap");
+
+            //外描边（描边Pass开关驱动 _OUTLINE_ON）
+            ApplyKeywordByPass(MatKeywordOutlineOn, MatPassNameOutline);
+            ApplyKeyword(MatKeywordOutlineSameWidth, "_FloatOutlineWidthType", (float)EOutlineWidthType.Same);
+            ApplyKeyword(MatKeywordOutlineScaling, "_FloatOutlineWidthType", (float)EOutlineWidthType.Scaling);
+            ApplyKeywordByTexture(MatKeywordOutlineMapOn, "_TexOutlineMap");
+
+            //边缘光
+            ApplyKeyword(MatKeywordRimLightOn, "_ToggleRimLight");
+            ApplyKeyword(MatKeywordRimLightShadeMaskOn, "_ToggleRimLightShadeMask");
+            ApplyKeyword(MatKeywordRimLightShadeMaskColorOn, "_ToggleRimLightShadeColor");
+            ApplyKeywordByTexture(MatKeywordRimLightMaskMapOn, "_TexRimLightMaskMap");
+
+            //自发光
+            ApplyKeyword(MatKeywordEmissiveOn, "_ToggleEmissive");
+            ApplyKeyword(MatKeywordEmissiveAnim, "_ToggleEmissiveAnim");
+
+            //材质捕获
+            ApplyKeyword(MatKeywordMatCapOn, "_ToggleMatCap");
+            ApplyKeyword(MatKeywordMatCapColorBlendMultiply, "_FloatMatCapColorBlend", (float)EColorBlend.Multiply);
+            ApplyKeyword(MatKeywordMatCapColorBlendLerp, "_FloatMatCapColorBlend", (float)EColorBlend.Lerp);
+
+            //光照设置
+            ApplyKeyword(MatKeywordAddLightOn, "_ToggleAddLight");
+            ApplyKeyword(MatKeywordBuiltInLight, "_ToggleBuiltInLight");
+        }
+
         #region BaseMap 基础贴图
         private static readonly GUIContent ContentBaseMap = new GUIContent("基础贴图", "基础色 : 贴图采样色(sRGB) × 自定义色(RGB), 默认:白色)");
         private static readonly GUIContent ContentBaseMapShadeThresholdMap = new GUIContent("暗部阈值贴图", "通过阈值贴图控制暗部1的分布与强度。暗部强度 : 纹理采样(linear)");
@@ -745,9 +791,11 @@ namespace BlurToonURP.EditorGUIx
         /// </summary>
         private const string MatKeywordOutlineScaling = "_OUTLINE_WIDTH_SCALING";
         /// <summary>
-        /// 通道名称 外描边
+        /// 通道名称 外描边。
+        /// Set/GetShaderPassEnabled 以 LightMode 标签匹配（非 Pass 的 Name），描边 Pass 的 LightMode 为 "SRPDefaultUnlit"，
+        /// 因此必须用该值，否则开关无法真正跳过描边 DrawCall（且 URP 默认只渲染 SRPDefaultUnlit，不能改成自定义 LightMode）。
         /// </summary>
-        private const string MatPassNameOutline = "Outline";
+        private const string MatPassNameOutline = "SRPDefaultUnlit";
         /// <summary>
         /// 关键词 描边纹理贴图 开启
         /// </summary>
