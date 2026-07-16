@@ -25,6 +25,8 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
+  - _ADDLIGHT_ON
+  - _MATCAP_COLORBLEND_MULTIPLY
   - _OUTLINE_ON
   - _OUTLINE_WIDTH_SAME
   - _RIMLIGHT_ON
@@ -210,6 +212,8 @@ Material:
     - _FloatRimLightShadeColorIntensity: 0.8
     - _FloatRimLightShadeMaskIntensity: 1
     - _FloatRimLightShadeMaskOffset: 0.4
+    - _FloatSelfShadowDepthBias: 0
+    - _FloatSelfShadowNormalBias: 0
     - _FloatShade1Shade2Blur: 0.01
     - _FloatShade1Shade2Step: 0.2
     - _FloatShadeThresholdMapIntensity: 0.5
@@ -287,6 +291,7 @@ Material:
     - _ToggleRimLightShadeColorHard: 0
     - _ToggleRimLightShadeMask: 0
     - _ToggleShadeThresholdMap: 0
+    - _ToggleShadowLowQualityPCF: 0
     - _ToggleShadowReceive: 1
     - _ToggleShadowTerminatorSmooth: 0
     - _UVSec: 0

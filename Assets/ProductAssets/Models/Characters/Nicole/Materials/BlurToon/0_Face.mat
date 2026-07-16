@@ -14,6 +14,7 @@ Material:
   m_ValidKeywords:
   - _ADDLIGHT_ON
   - _BASEMAP_SHADE_THRESHOLDMAP_ON
+  - _MATCAP_COLORBLEND_MULTIPLY
   - _OUTLINE_ON
   - _OUTLINE_WIDTH_SAME
   - _RIMLIGHT_ON
@@ -203,6 +204,8 @@ Material:
     - _FloatRimLightShadeColorIntensity: 0.8
     - _FloatRimLightShadeMaskIntensity: 1
     - _FloatRimLightShadeMaskOffset: 0.4
+    - _FloatSelfShadowDepthBias: 0
+    - _FloatSelfShadowNormalBias: 0
     - _FloatShade1Shade2Blur: 1
     - _FloatShade1Shade2Step: 0.4
     - _FloatShadeThresholdMapIntensity: 0.3
@@ -280,6 +283,7 @@ Material:
     - _ToggleRimLightShadeColorHard: 0
     - _ToggleRimLightShadeMask: 1
     - _ToggleShadeThresholdMap: 1
+    - _ToggleShadowLowQualityPCF: 0
     - _ToggleShadowReceive: 0
     - _ToggleShadowTerminatorSmooth: 0
     - _UVSec: 0
