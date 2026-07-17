@@ -32,6 +32,9 @@ half _FloatShade1Shade2Blur; //暗部1→暗部2 模糊
 //暗部阈值贴图（属性无条件声明以保证 CBUFFER 布局稳定，实际是否采样由片元中的关键词决定）
 float4 _TexShadeThresholdMap_ST; //暗部阈值 贴图
 half _FloatShadeThresholdMapIntensity; //暗部阈值贴图 强度
+//漫反射过渡方式（程序化色阶 / Ramp 贴图）。_FloatDiffuseType 仅驱动关键词，片元不直接读取；仍须入 CBUFFER 以兼容 SRP Batcher。
+half _FloatDiffuseType; //漫反射过渡方式 0=色阶(程序化) 1=Ramp贴图
+half _FloatDiffuseRampV; //Ramp 行选择 V（多行渐变图集时选取所在行；单行图取 0.5）
 
 
 //-------- Surface 表面类型 / 透明度裁切 --------

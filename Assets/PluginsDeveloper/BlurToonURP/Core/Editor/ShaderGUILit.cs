@@ -37,6 +37,7 @@ namespace BlurToonURP.EditorGUIx
 
             //基础贴图
             SetKeyword(material, MatKeywordShadeThresholdMap, "_ToggleShadeThresholdMap");
+            SetKeyword(material, MatKeywordDiffuseRamp, "_FloatDiffuseType", (float)EDiffuseType.Ramp);
 
             //表面类型 / 裁剪（溶解）
             SetKeyword(material, MatKeywordAlphaTest, "_ToggleAlphaClip");
@@ -77,11 +78,38 @@ namespace BlurToonURP.EditorGUIx
         #region BaseMap 基础贴图
         private static readonly GUIContent ContentBaseMap = new GUIContent("基础贴图", "基础色 : 贴图采样色(sRGB) × 自定义色(RGB), 默认:白色)");
         private static readonly GUIContent ContentBaseMapShadeThresholdMap = new GUIContent("暗部阈值贴图", "通过阈值贴图控制暗部1的分布与强度。暗部强度 : 纹理采样(linear)");
+        private static readonly GUIContent ContentDiffuseType = new GUIContent("漫反射过渡方式",
+            "暗部过渡的生成方式：\n色阶 = 程序化两段暗部（暗部1/2 颜色 + 位置/模糊）。\n" +
+            "Ramp贴图 = 用 halfLambert 采样一维渐变贴图，过渡软硬与分段由贴图决定，更自由。\n" +
+            "两种方式都受“暗部阈值贴图”影响。");
+        private static readonly GUIContent ContentDiffuseRamp = new GUIContent("Ramp 渐变贴图",
+            "漫反射明暗渐变：横向 左=暗部 右=亮部，直接乘到基础色。\n已强制 Clamp/Linear/LOD0 采样，无需修改导入的 Wrap/Filter；建议关闭 Mipmap。\n默认白=不变暗。");
 
         /// <summary>
         /// 关键词 暗部阈值贴图
         /// </summary>
         private const string MatKeywordShadeThresholdMap = "_BASEMAP_SHADE_THRESHOLDMAP_ON";
+
+        /// <summary>
+        /// 关键词 漫反射 Ramp 贴图软过渡方式
+        /// </summary>
+        private const string MatKeywordDiffuseRamp = "_BASEMAP_DIFFUSE_RAMP_ON";
+
+        /// <summary>
+        /// 漫反射过渡方式
+        /// </summary>
+        private enum EDiffuseType
+        {
+            /// <summary>
+            /// 色阶（程序化两段暗部）
+            /// </summary>
+            Steps,
+
+            /// <summary>
+            /// Ramp 贴图（一维渐变软过渡）
+            /// </summary>
+            Ramp
+        }
 
         /// <summary>
         /// 主面板 基础贴图
@@ -102,26 +130,49 @@ namespace BlurToonURP.EditorGUIx
             //法线贴图开关（基础贴图光照使用法线贴图）
             NormalMapToggle("法线贴图", "_ToggleNormalMapOnBaseMap");
 
-            //暗部颜色1
-            EditorGUIx.LabelItem("暗部颜色");
-            EditorGUILayout.BeginHorizontal();
-            MaterialEditor.ColorProperty(GetMaterialProperty("_Shade1Color"),"暗部1颜色");
-            EditorGUILayout.EndHorizontal();
+            //条目 漫反射过渡方式（色阶 程序化 / Ramp 贴图）
+            var matPropDiffuseType = GetMaterialProperty("_FloatDiffuseType");
+            //先用“本帧起始值”锁定分支，再绘制下拉：DropdownEnum 会在同一帧内改写 _FloatDiffuseType，
+            //若据此立刻切换分支，会使 Layout 与后续事件绘制的控件数量不一致（IMGUI 控件计数错配）；
+            //当分支内含贴图选择器(TexturePropertySingleLine)时，该错配会触发 ObjectSelector 的
+            //“Cannot reparent window to suggested parent” 警告。锁定后：视觉切换顺延到下一帧(无感)，
+            //关键词同步仍按当前值即时生效。（其它面板的贴图选择器都不在“类型下拉的可翻转分支”内，故无此问题。）
+            bool isRampMode = matPropDiffuseType.floatValue.Equals((float)EDiffuseType.Ramp);
+            EditorGUIx.DropdownEnum(ContentDiffuseType, matPropDiffuseType, typeof(EDiffuseType), MaterialEditor);
+            //多选编辑：按各材质自身类型同步 Ramp 关键词
+            ApplyKeyword(MatKeywordDiffuseRamp, "_FloatDiffuseType", (float)EDiffuseType.Ramp);
 
-            //暗部颜色2
-            EditorGUILayout.BeginHorizontal();
-            MaterialEditor.ColorProperty(GetMaterialProperty("_Shade2Color"), "暗部2颜色");
-            EditorGUILayout.EndHorizontal();
+            if (isRampMode)
+            {
+                //【Ramp 贴图】用 halfLambert 采样一维渐变（左=暗 右=亮），替代程序化色阶
+                EditorGUIx.LabelItem("Ramp 渐变");
+                MaterialEditor.TexturePropertySingleLine(ContentDiffuseRamp, GetMaterialProperty("_TexDiffuseRamp"));
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatDiffuseRampV"), "行选择(V)");
+            }
+            else
+            {
+                //【色阶】程序化两段暗部（暗部1/2 颜色 + 位置/模糊）
+                //暗部颜色1
+                EditorGUIx.LabelItem("暗部颜色");
+                EditorGUILayout.BeginHorizontal();
+                MaterialEditor.ColorProperty(GetMaterialProperty("_Shade1Color"),"暗部1颜色");
+                EditorGUILayout.EndHorizontal();
 
-            //色阶分布
-            EditorGUIx.LabelItem("阴影色阶分布与模糊");
-            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatBrightShade1Step"), "亮部→暗部1 : 位置");
-            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatBrightShade1Blur"), "亮部→暗部1 : 模糊");
-            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatShade1Shade2Step"), "暗部1→暗部2 : 位置");
-            MaterialEditor.RangeProperty(GetMaterialProperty("_FloatShade1Shade2Blur"), "暗部1→暗部2 : 模糊");
+                //暗部颜色2
+                EditorGUILayout.BeginHorizontal();
+                MaterialEditor.ColorProperty(GetMaterialProperty("_Shade2Color"), "暗部2颜色");
+                EditorGUILayout.EndHorizontal();
+
+                //色阶分布
+                EditorGUIx.LabelItem("阴影色阶分布与模糊");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatBrightShade1Step"), "亮部→暗部1 : 位置");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatBrightShade1Blur"), "亮部→暗部1 : 模糊");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatShade1Shade2Step"), "暗部1→暗部2 : 位置");
+                MaterialEditor.RangeProperty(GetMaterialProperty("_FloatShade1Shade2Blur"), "暗部1→暗部2 : 模糊");
+            }
             EditorGUILayout.Space();
-            
-            //暗部阈值贴图
+
+            //暗部阈值贴图（两种方式通用：采样前把区域推向渐变/色阶的更暗端）
             EditorGUIx.FoldoutPanel("暗部阈值贴图", PanelSubShadeThresholdMap, EditorGUIx.EFoldoutStyleType.Sub);
         }
 

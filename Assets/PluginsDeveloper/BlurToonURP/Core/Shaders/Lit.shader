@@ -42,6 +42,11 @@ Shader "BlurToonURP/Lit"
         _TexShadeThresholdMap ("Shade ThresholdMap ", 2D) = "white" {} //暗部阈值贴图
         _FloatShadeThresholdMapIntensity ("Shade ThresholdMap Intensity", Range(0, 1)) = 0.5 //暗部阈值贴图 强度
 
+        //漫反射过渡方式（程序化色阶 / Ramp 贴图软过渡）
+        _FloatDiffuseType ("Diffuse Type", Float) = 0 //0=色阶(程序化) 1=Ramp贴图 ●记录 设置关键词 _BASEMAP_DIFFUSE_RAMP_ON
+        _TexDiffuseRamp ("Diffuse Ramp", 2D) = "white" {} //漫反射渐变贴图（横向 左=暗 右=亮）；默认白=不变暗
+        _FloatDiffuseRampV ("Diffuse Ramp Row V", Range(0, 1)) = 0.5 //Ramp 行选择（多行渐变图集）
+
 
         //----------- Surface 表面类型 / 透明度裁切 -----------
         [HideInInspector] _Surface ("Surface Type", Float) = 0 //表面类型 0=Opaque 1=Transparent ●记录 由编辑器按类型设置渲染状态
@@ -262,6 +267,7 @@ Shader "BlurToonURP/Lit"
             #pragma shader_feature_local _ALPHATEST_ON //透明度裁切
             #pragma shader_feature_local _ _CLIP_DITHER _CLIP_ALPHA //裁剪（溶解）：无=关闭 / 挖孔 / 透明度
             #pragma shader_feature_local _BASEMAP_SHADE_THRESHOLDMAP_ON //暗部阈值贴图
+            #pragma shader_feature_local _BASEMAP_DIFFUSE_RAMP_ON //漫反射 Ramp贴图 软过渡方式
 			#pragma shader_feature_local _ADDLIGHT_ON // 附加光照
             #pragma shader_feature_local _BUILTINLIGHT_ON // 内置光照
             //高光
@@ -332,6 +338,14 @@ Shader "BlurToonURP/Lit"
             //暗部阈值贴图
             #if defined(_BASEMAP_SHADE_THRESHOLDMAP_ON)
             TEXTURE2D(_TexShadeThresholdMap); SAMPLER(sampler_TexShadeThresholdMap); //暗部阈值贴图
+            #endif
+
+            //漫反射 Ramp 渐变贴图（软过渡方式）。采样复用 URP 全局内联采样器 sampler_LinearClamp
+            //（core/ShaderLibrary/GlobalSamplers.hlsl 已全局声明）强制 线性+钳制，与贴图导入的 Wrap/Filter 无关：
+            //钳制避免 halfLambert 两端环绕取到反向颜色，线性保证渐变平滑。
+            //注意：切勿在此再次 SAMPLER(sampler_LinearClamp)——URP 已声明，重复声明会导致 shader 重定义报错（材质变紫）。
+            #if defined(_BASEMAP_DIFFUSE_RAMP_ON)
+            TEXTURE2D(_TexDiffuseRamp);
             #endif
 
             #if defined(_RIMLIGHT_ON) && defined(_RIMLIGHT_MASKMAP_ON)
@@ -588,6 +602,20 @@ Shader "BlurToonURP/Lit"
                 halfLambert = saturate(halfLambert - shadeThresholdValue);
                 #endif
                 
+                //漫反射过渡：两种方式二选一，均产出下游共用的 colorFinalBlend 与 lightIntensityShade1/2。
+                #if defined(_BASEMAP_DIFFUSE_RAMP_ON)
+                //【Ramp 贴图】用 halfLambert 作横向采样坐标(左0=暗 右1=亮)取一维渐变，渐变自带明暗过渡与暗部色，
+                //直接乘到基础反照率。美术在贴图内自由控制过渡软硬与分段，替代程序化两段色阶(暗部1/2 色 + 位置/模糊)。
+                //halfLambert 已含接收阴影/暗部阈值贴图的影响 → 阴影会把采样推向渐变暗端。
+                //saturate 保证坐标∈[0,1]；LOD0 采样避免明暗交界处 halfLambert 屏幕导数过大而选到模糊 mip。
+                float rampU = saturate(halfLambert);
+                half3 rampColor = SAMPLE_TEXTURE2D_LOD(_TexDiffuseRamp, sampler_LinearClamp, float2(rampU, _FloatDiffuseRampV), 0).rgb;
+                float3 colorFinalBlend = colorBaseMapFinal * rampColor;
+                //供下游(高光/材质捕获的“阴影遮罩”)复用的暗部因子：渐变越暗→越处于暗部。Rec709 亮度，自包含无需额外依赖。
+                float lightIntensityShade1 = saturate(1 - dot(rampColor, half3(0.2126, 0.7152, 0.0722)));
+                float lightIntensityShade2 = lightIntensityShade1;
+                #else
+                //【色阶】程序化两段色阶。
                 //色阶过渡的屏幕空间抗锯齿：
                 //过渡带宽度(模糊)是以 halfLambert 为单位的固定值。当过渡位置(Step)落在 halfLambert 屏幕梯度陡峭处
                 //(如球体轮廓附近/掠射角/低模面片边界)时，过渡带在屏幕上会塌缩到亚像素宽度而形成硬边锯齿。
@@ -600,9 +628,10 @@ Shader "BlurToonURP/Lit"
                 //暗部2
                 float blurShade1Shade2 = max(_FloatShade1Shade2Blur * 0.05, halfLambertFwidth);
                 float lightIntensityShade2 = 1 - saturate(1 + (halfLambert - _FloatShade1Shade2Step) / blurShade1Shade2);
-                
+
                 //混合颜色
                 float3 colorFinalBlend = lerp(colorBaseMapFinal, lerp(colorBaseMapShade1, colorBaseMapShade2, lightIntensityShade2), lightIntensityShade1);
+                #endif
                 //-------- BaseMap 基础贴图 -------- End
 
 
