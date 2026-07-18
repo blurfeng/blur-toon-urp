@@ -140,7 +140,7 @@ Shader 与编辑器源码位置：
 #### Bright Shade Step 阴影色阶
 以半兰伯特值为依据，控制 `亮部→暗部1` 与 `暗部1→暗部2` 两级过渡的分界位置与羽化模糊程度，从而实现硬边卡通阴影或柔和渐变阴影。  
 
-![](Documents~/Feature_ShadeStep.png)
+![](Documents~/Feature_ShadeStep.gif)
 
 | 参数 | 属性 | 说明 |
 | :-- | :-- | :-- |
