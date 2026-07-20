@@ -1,13 +1,62 @@
-# BlurToonURP
-
-## 概要
-这是使用 `Unity 2022.3 LTS(URP 14.x)` 的 `URP` 渲染管线开发的 `NPR` 二次元卡通渲染 Shader 工程。  
-实现了通用的二次元卡通渲染效果。  
-使用 MIT 许可证，你可以随意地使用这个项目。  
-
 ![](Documents~/EditorDemo.gif)
 
-## 运行环境
+<p align="center">
+  <!-- <img alt="GitHub Release" src="https://img.shields.io/github/v/release/blurfeng/BlurToonURP?color=blue"> -->
+  <img alt="Unity" src="https://img.shields.io/badge/Unity-2022.3-black?logo=unity">
+  <img alt="URP" src="https://img.shields.io/badge/URP-14.x-black?logo=unity">
+  <!-- <img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/blurfeng/BlurToonURP/total?color=green"> -->
+  <img alt="GitHub Repo License" src="https://img.shields.io/badge/license-MIT-blueviolet">
+  <img alt="GitHub Repo Issues" src="https://img.shields.io/github/issues/blurfeng/BlurToonURP?color=yellow">
+</p>
+
+<p align="center">
+  🌍
+  中文 |
+  <a href="./README_EN.md">English</a> |
+  <a href="./README_JA.md">日本語</a>
+</p>
+
+<p align="center">
+  📥
+  <a href="#-快速开始">快速开始</a> |
+  <a href="#-功能">功能一览</a>
+</p>
+
+# BlurToonURP - 二次元卡通渲染 Shader
+这是使用 `Unity 2022.3 LTS(URP 14.x)` 的 `URP` 渲染管线开发的 `NPR` 二次元卡通渲染 Shader 工程。  
+实现了通用的二次元卡通渲染效果，涵盖基础设置、阴影色阶、高光、外描边、边缘光、自发光、材质捕获与光照设置等完整功能。  
+使用 MIT 许可证，你可以随意地使用这个项目。  
+
+## 📜 目录
+- [💻 运行环境](#-运行环境)
+- [🌱 快速开始](#-快速开始)
+- [✨ 功能](#-功能)
+  - [Basic 基础设置](#basic-基础设置)
+    - [RenderQueue 渲染队列](#renderqueue-渲染队列)
+    - [Clip 裁剪（溶解）](#clip-裁剪溶解)
+    - [Stencil 模板测试](#stencil-模板测试)
+  - [Base Map 基础贴图](#base-map-基础贴图)
+    - [Diffuse Type 漫反射过渡方式](#diffuse-type-漫反射过渡方式)
+    - [Bright Shade Step 阴影色阶](#bright-shade-step-阴影色阶)
+    - [Shade Threshold Map 阴影阈值贴图](#shade-threshold-map-阴影阈值贴图)
+  - [Normal Map 法线贴图](#normal-map-法线贴图)
+  - [HighLight 高光](#highlight-高光)
+    - [Mask Map 遮罩贴图](#mask-map-遮罩贴图)
+  - [Outline 外描边](#outline-外描边)
+  - [Rim Light 边缘光](#rim-light-边缘光)
+    - [Rim Light Type 边缘检测方式](#rim-light-type-边缘检测方式)
+    - [Shade Mask 暗部遮罩](#shade-mask-暗部遮罩)
+    - [Mask Map 遮罩贴图](#mask-map-遮罩贴图-1)
+  - [Emissive 自发光](#emissive-自发光)
+    - [Emissive Animation 自发光动画](#emissive-animation-自发光动画)
+  - [MatCap 材质捕获](#matcap-材质捕获)
+    - [Mask Map 遮罩贴图](#mask-map-遮罩贴图-2)
+  - [Light Setting 光照设置](#light-setting-光照设置)
+  - [渲染 Pass 说明](#渲染-pass-说明)
+  - [Debug 调试](#debug-调试)
+  - [Tools 工具](#tools-工具)
+
+## 💻 运行环境
 | 项目 | 版本 |
 | :-- | :-- |
 | Unity | `2022.3.62f3 LTS` |
@@ -15,7 +64,7 @@
 | 渲染管线 | Universal Render Pipeline |
 | 许可证 | MIT |
 
-## 快速开始
+## 🌱 快速开始
 1. 使用 `Unity 2022.3 LTS` 打开工程，并确保项目已启用 `URP` 渲染管线。  
 2. 新建材质球，将 Shader 切换为 `BlurToonURP/Lit`。  
 3. 在材质球的 `Inspector` 面板中，通过配套编辑器界面折叠面板调整各项效果。  
@@ -27,12 +76,13 @@ Shader 与编辑器源码位置：
 - Shader：`Assets/PluginsDeveloper/BlurToonURP/Core/Shaders/Lit.shader`
 - 材质属性缓冲区：`Assets/PluginsDeveloper/BlurToonURP/Core/Shaders/LitInput.hlsl`
 - 通用函数库：`Assets/PluginsDeveloper/BlurToonURP/Core/Shaders/BlurFunction.hlsl`
+- 阴影函数库：`Assets/PluginsDeveloper/BlurToonURP/Core/Shaders/ShadowFunction.hlsl`
 - 编辑器界面：`Assets/PluginsDeveloper/BlurToonURP/Core/Editor/ShaderGUILit.cs`
 - 工具脚本：`Assets/PluginsDeveloper/BlurToonURP/Core/Tools/LightController.cs`
 
 ![](Documents~/Feature_Inspector.png)
 
-## 功能
+## ✨ 功能
 ---
 功能代码编写尽力保证 `代码整洁` 和 `性能高效`。完整的 `代码注释` 使你直接阅读 Shader 文件也可以快速理解整个代码工作流程。  
 同时开发了配套的 `Inspector 编辑器界面`，使创作者能更方便地进行效果的调整。  
@@ -124,7 +174,8 @@ Shader 与编辑器源码位置：
 ### Base Map 基础贴图
 `【基础贴图 BaseMap】基础贴图及暗部贴图`
 
-以基础贴图为主色，结合 `半兰伯特(Half-Lambert)` 光照计算出双层暗部（暗部1、暗部2），并通过色阶阈值与羽化模糊构建出卡通风格的明暗分层。  
+以基础贴图为主色，结合 `半兰伯特(Half-Lambert)` 光照计算出暗部，构建卡通风格的明暗分层。  
+暗部的**过渡生成方式**有两种，由 `漫反射过渡方式` 二选一：`色阶`（程序化两段暗部）与 `Ramp贴图`（一维渐变软过渡）。二者产出下游共用的最终颜色与暗部因子，是同一个漫反射环节的两种实现，并非并列的独立特性。  
 
 ![](Documents~/Feature_BaseMap.png)
 
@@ -134,10 +185,32 @@ Shader 与编辑器源码位置：
 | 基础色 | `_BaseColor` | 与贴图相乘的自定义颜色（HDR） |
 | 混合颜色 / 混合强度 | `_BaseMapBlendColor` / `_BaseMapBlendColorIntensity` | 在基础色上叠加混合一个自定义颜色 |
 | 法线贴图 | `_ToggleNormalMapOnBaseMap` | 基础贴图的明暗计算使用法线贴图（需先在【法线贴图】面板指定贴图） |
-| 暗部1颜色 | `_Shade1Color` | 第一层暗部颜色 |
-| 暗部2颜色 | `_Shade2Color` | 第二层暗部颜色 |
+| 漫反射过渡方式 | `_FloatDiffuseType` → `_BASEMAP_DIFFUSE_RAMP_ON` | `色阶`（0，默认）/ `Ramp贴图`（1），见下方【漫反射过渡方式】 |
+| 暗部1颜色 | `_Shade1Color` | 第一层暗部颜色（仅 `色阶` 方式） |
+| 暗部2颜色 | `_Shade2Color` | 第二层暗部颜色（仅 `色阶` 方式） |
+
+#### Diffuse Type 漫反射过渡方式
+决定「半兰伯特值 → 明暗颜色」这一步的生成方式。切换后编辑器只显示对应方式的参数，另一套参数仍保留在材质中不会丢失。  
+
+| 方式 | 关键词 | 原理 | 适用 |
+| :-- | :-- | :-- | :-- |
+| `色阶`（默认） | 无关键词 | 程序化两段色阶：按 `位置 / 模糊` 在亮部、暗部1、暗部2 三层颜色间过渡 | 分层明确的卡通阴影，纯参数调节、无需额外贴图 |
+| `Ramp贴图` | `_BASEMAP_DIFFUSE_RAMP_ON` | 用半兰伯特值作横向 UV 采样一维渐变贴图（左=暗 右=亮），结果直接乘到基础色 | 过渡软硬与分段完全由美术在贴图内绘制，更自由 |
+
+`Ramp贴图` 方式的专属参数：  
+
+| 参数 | 属性 | 说明 |
+| :-- | :-- | :-- |
+| Ramp 渐变贴图 | `_TexDiffuseRamp` | 横向渐变（左=暗部 右=亮部）。**默认白 = 不变暗**（未指定贴图时安全降级） |
+| 行选择(V) | `_FloatDiffuseRampV` | 多行渐变图集时选取所在行；单行图取 `0.5` |
+
+> Ramp 采样在 Shader 内强制 `Clamp / Linear / LOD0`，无需修改贴图导入的 Wrap/Filter 设置；建议关闭 Mipmap。强制 LOD0 是为了避免明暗交界处半兰伯特的屏幕导数过大而选到模糊 mip。  
+> 两种方式都受 `阴影接收` 与 `暗部阈值贴图` 影响——它们作用在半兰伯特值上，因此阴影会把 Ramp 的采样坐标推向渐变的暗端。  
+> `Ramp贴图` 方式下不使用 `暗部1/2 颜色` 与 `阴影色阶` 参数；下游（高光 / 材质捕获的「阴影遮罩」）所需的暗部因子改由 Ramp 采样色的 Rec709 亮度反推，与色阶方式共用同一条链路。  
 
 #### Bright Shade Step 阴影色阶
+> 仅 `色阶` 方式生效。  
+
 以半兰伯特值为依据，控制 `亮部→暗部1` 与 `暗部1→暗部2` 两级过渡的分界位置与羽化模糊程度，从而实现硬边卡通阴影或柔和渐变阴影。  
 
 ![](Documents~/Feature_ShadeStep.gif)
@@ -152,7 +225,9 @@ Shader 与编辑器源码位置：
 > 色阶过渡带做了**屏幕空间抗锯齿**：用 `fwidth(halfLambert)` 作为过渡带的最小宽度，保证过渡至少覆盖约 1 个像素。这样在球体轮廓、掠射角、低模面片边界等半兰伯特梯度陡峭处不会塌缩成硬边锯齿；美术设置的模糊更大时按其原值，外观不变。  
 
 #### Shade Threshold Map 阴影阈值贴图
-通过一张阈值贴图（采样 R 通道）控制 `暗部1` 的分布与强度，可用于在固定区域（如脸部、褶皱）手绘阴影的形状。  
+> `色阶` 与 `Ramp贴图` 两种方式共用。  
+
+通过一张阈值贴图（采样 R 通道）控制暗部的分布与强度，可用于在固定区域（如脸部、褶皱）手绘阴影的形状。  
 ![](Documents~/Feature_ShadeThresholdMap.png)
 
 ![](Documents~/Feature_ShadeThresholdMap.gif)
@@ -166,23 +241,29 @@ Shader 与编辑器源码位置：
 ---
 
 ### Normal Map 法线贴图
-`【法线贴图 NormalMap】强度、效果开关`
+`【法线贴图 NormalMap】贴图、强度、各效果生效状态`
 
 采样切线空间法线贴图并转换到世界空间，供各效果按需使用。  
 
 | 参数 | 属性 | 说明 |
 | :-- | :-- | :-- |
-| 法线贴图 | `_BumpMap` | 切线空间法线贴图 |
+| 法线贴图 | `_BumpMap` | 切线空间法线贴图（含缩放偏移） |
 | 强度 | `_BumpScale` | 法线强度 |
 
-> **法线的启用开关采用面向对象设计，分散在各效果面板内**，本面板只负责指定法线贴图本身：  
-> - 【基础贴图】→ `法线贴图`（`_ToggleNormalMapOnBaseMap`）  
-> - 【高光】→ `法线贴图`（`_ToggleNormalMapOnHighLight`）  
-> - 【材质捕获】→ `法线贴图`（`_ToggleNormalMapOnMatCap`）  
-> - 【自发光】→ `自发光动画 → 视角变化颜色 → 法线贴图`（`_ToggleNormalMapOnEmissive`）  
-> - 【边缘光】→ `法线来源`（`_FloatRimLightNormalSource`，几何法线 / 法线贴图 / 混合）  
->
-> 未指定法线贴图却开启了上述任一开关时，编辑器会在该开关下方**红字提示不生效**；本面板未指定贴图时也会给出总提示。  
+**法线的启用开关采用面向对象设计，分散在各效果面板内**，本面板只负责指定法线贴图本身，并汇总各效果的生效状态：  
+
+| 效果 | 开关位置 | 属性 |
+| :-- | :-- | :-- |
+| 基础贴图 | 【基础贴图】→ `法线贴图` | `_ToggleNormalMapOnBaseMap` |
+| 高光 | 【高光】→ `法线贴图` | `_ToggleNormalMapOnHighLight` |
+| 材质捕获 | 【材质捕获】→ `法线贴图` | `_ToggleNormalMapOnMatCap` |
+| 自发光 | 【自发光】→ `自发光动画 → 视角变化颜色 → 法线贴图` | `_ToggleNormalMapOnEmissive` |
+| 边缘光 | 【边缘光】→ `法线来源`（几何法线 / 法线贴图 / 混合） | `_FloatRimLightNormalSource` |
+
+本面板底部会**只读列出**上述每一项当前的生效状态，便于一眼看出「开了法线开关却没有变化」到底是缺贴图、强度为 0，还是效果自身的前置开关未开。  
+
+> 未指定法线贴图却开启了上述任一开关时，编辑器会在该开关下方**红字提示不生效**。  
+> 本面板在未指定贴图、或 `强度` 为 0（采样结果等同平面法线）时也会给出总提示。  
 
 ---
 
@@ -243,7 +324,8 @@ Shader 与编辑器源码位置：
 ### Rim Light 边缘光
 `【边缘光 RimLight】颜色、大小、遮罩`
 
-基于 `法线与视线夹角(NdotV)` 计算边缘光，支持强度、内部延伸距离与硬边缘控制。  
+在物体轮廓处叠加发亮的边缘，支持强度、内部延伸距离与硬边缘控制。  
+边缘的**检测方式**有两种（`菲涅尔` / `深度差`）二选一，二者只负责产出同一个边缘信号，之后的颜色、强度、内部距离、硬边缘、暗部遮罩、遮罩贴图等处理**完全共用**。  
 
 ![](Documents~/Feature_RimLight.gif)
 
@@ -254,10 +336,33 @@ Shader 与编辑器源码位置：
 | 强度 | `_FloatRimLightIntensity` | 边缘光范围/强度 |
 | 内部距离 | `_FloatRimLightInsideDistance` | 边缘光向内延伸距离，越大范围越窄 |
 | 硬边缘 | `_ToggleRimLightHard` | 边缘硬化（去除渐变） |
+| 检测方式 | `_FloatRimLightType` → `_RIMLIGHT_DEPTH_ON` | `菲涅尔`（0，默认）/ `深度差`（1），见下方【边缘检测方式】 |
+
+#### Rim Light Type 边缘检测方式
+
+| 方式 | 关键词 | 原理 | 特点 |
+| :-- | :-- | :-- | :-- |
+| `菲涅尔`（默认） | 无关键词 | 按 `法线与视线夹角(NdotV)`，越接近掠射角越亮 | 柔和渐变、随表面法线细节起伏；无额外依赖 |
+| `深度差` | `_RIMLIGHT_DEPTH_ON` | 屏幕空间沿法线朝向偏移若干像素采样场景深度，偏移点更远即判定为朝向相机的轮廓边缘 | 轮廓等宽干净、不受表面法线细节影响；**需开启 Depth Texture** |
+
+`菲涅尔` 方式的专属参数：  
+
+| 参数 | 属性 | 说明 |
+| :-- | :-- | :-- |
 | 法线来源 / 混合强度 | `_FloatRimLightNormalSource` / `_FloatRimLightNormalMapBlend` | 边缘光法线来源：`几何法线` / `法线贴图` / `混合`（仅混合档用到混合强度） |
 
-> `法线来源` 选择 `法线贴图` 或 `混合` 但未指定法线贴图时，编辑器会红字提示不生效。  
-> 该选择使用 `lerp + step` 构建无分支选择器（与「描边类型」同款写法），不额外产生关键词变体。  
+`深度差` 方式的专属参数：  
+
+| 参数 | 属性 | 说明 |
+| :-- | :-- | :-- |
+| 采样宽度(像素) | `_FloatRimLightDepthWidth` | 偏移采样的像素距离，即边缘宽度。以 `1080p` 为基准做分辨率无关缩放，并限幅 128 像素 |
+| 深度阈值 | `_FloatRimLightDepthThreshold` | 世界单位。深度差需超过此值才算边缘，用于抑制模型内部的深度噪声 |
+| 阈值软过渡 | `_FloatRimLightDepthThresholdSoft` | 阈值附近的柔和过渡宽度，越大边缘越软 |
+
+> ⚠ `深度差` 方式依赖 `_CameraDepthTexture`，**必须在 URP Asset 中开启 `Depth Texture`**，否则无效果甚至整体发亮。编辑器在选择该方式时会红字提示。  
+> 当前像素深度取片元自身的 `positionCS.z`（不依赖深度图是否已包含本物体），偏移点用整数像素坐标 `Load` 采样，规避不同图形 API 的 UV 上下翻转问题。  
+> 偏移**仅沿屏幕水平方向**（取观察空间法线 x 的符号），因此主要检测左右方向的竖直轮廓——这既与参考实现一致，也规避了 `SV_Position` 的 Y 轴方向在 D3D（向下）与 GL（向上）下不一致导致的上下轮廓偏移方向错误。  
+> `深度差` 方式不使用 `法线来源` 配置；`菲涅尔` 方式的 `法线来源` 选择 `法线贴图` 或 `混合` 但未指定法线贴图时，编辑器会红字提示不生效。该选择使用 `lerp + step` 构建无分支选择器（与「描边类型」同款写法），不额外产生关键词变体。  
 
 #### Shade Mask 暗部遮罩
 对 `主光源反方向` 的边缘光进行遮罩，防止背光/阴影部分出现不自然的边缘发亮。可在遮罩后为暗部叠加专属颜色的边缘光。  
@@ -408,6 +513,9 @@ Shader 与编辑器源码位置：
 | 阴影投射 | `ShadowCaster` Pass 开关（`Material.SetShaderPassEnabled("ShadowCaster", ...)`，无对应材质属性） | 向场景投射阴影。开启透明度裁切时，镂空处不投射阴影 |
 | 阴影接收 / 强度 | `_ToggleShadowReceive` / `_FloatShadowIntensity` | 接收场景投射的真实阴影；强度为阴影衰减的偏移量（负值提亮/柔化阴影，正值加深） |
 | 交界柔化 / 柔化值 | `_ToggleShadowTerminatorSmooth` / `_FloatShadowTerminatorSmooth` | 处理明暗交界的锯齿，见下方说明 |
+| 自阴影偏移 : 深度偏移 | `_FloatSelfShadowDepthBias` | 投射时沿光方向推动 caster，增大可减少自阴影粉刺（Shadow Acne） |
+| 自阴影偏移 : 法线偏移 | `_FloatSelfShadowNormalBias` | 投射时沿法线内缩并按 `1-NdotL` 坡度缩放（掠射角最强），增大可压制明暗交界碎裂 |
+| 低质量PCF | `_ToggleShadowLowQualityPCF` | 强制用低质量（4-tap）PCF 核重采样主光阴影，减少角色尺度下的阴影透视锯齿 |
 
 `交界柔化` 用于解决明暗交界处暴露阴影图分辨率锯齿的问题：  
 
@@ -418,6 +526,16 @@ Shader 与编辑器源码位置：
 
 > `柔化值` 为几何平滑自阴影包络的过渡半宽：越大交界越平滑（几何主导范围越大），越小交界越锐、投射阴影越贴近交界。  
 > 依赖主光阴影关键词 `_MAIN_LIGHT_SHADOWS*`（已在 `ForwardLit` 与 `Outline` Pass 中补齐），需在 URP Asset 中启用主光阴影，本体与描边方能接收真实投射阴影。
+
+`自阴影偏移` 与 `低质量PCF` 是叠加在 URP 全局设置之上的**逐材质补偿**，默认值均为「不改变原行为」，只对个别容易出问题的模型单独调整：  
+
+| 项目 | 默认 | 说明 |
+| :-- | :-- | :-- |
+| 自阴影偏移（深度 / 法线） | `0 / 0` = 不额外偏移 | 在 URP 全局阴影 Bias 之上，于 `ShadowCaster` Pass 内推动顶点。深度偏移过大会漏光（Peter-Panning）；法线偏移按坡度缩放，主要压制交界碎裂。滑条 `[0,1]` 对应约 `0~0.02` 世界单位，落在角色尺度的可用区间 |
+| 低质量PCF | `关` = 用 URP 原采样 | Medium/High 的宽核 PCF 会把采样铺展到更大的阴影图区域，在角色尺度透视下反而放大纹素阶梯；低质量核更贴合角色、边缘更干净。仅对**阴影图**路径生效，屏幕空间阴影（`_MAIN_LIGHT_SHADOWS_SCREEN`）与无阴影时回退默认采样 |
+
+> ⚠ `低质量PCF` 仍需在 URP Asset 勾选 `Soft Shadows`——4-tap 的纹素偏移只有开启软阴影时才由管线上传，否则 4 个采样点重合、等同硬阴影，此开关将无可见效果。  
+> 实现见 `Core/Shaders/ShadowFunction.hlsl` 的 `MainLightShadowLowQualityPCF`。  
 
 **内置光照（材质专属）**
 
