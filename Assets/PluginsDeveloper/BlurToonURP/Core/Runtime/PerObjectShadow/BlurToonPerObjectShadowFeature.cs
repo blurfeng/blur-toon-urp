@@ -11,7 +11,8 @@ namespace BlurToonURP
     /// 2) 光源或相机移动时纹素栅格重新量化，边缘逐帧跳变。
     ///
     /// 做法：给每个挂了 BlurToonPerObjectShadowCaster 的对象分配一块紧贴其包围盒的高分辨率瓦片。
-    /// 瓦片视锥朝光源方向拉长，因此同时包含对象自身与场景遮挡物，角色只采样这一张图即可。
+    /// 瓦片里只画对象自身（不含场景遮挡物），因此它只提供自阴影；
+    /// 角色收到的场景投影仍来自 URP 级联图，两者由 Settings.combineMode 合并。
     ///
     /// 使用步骤：
     /// 1) 把本 Feature 添加到 URP Renderer 资产上（本工程为 Assets/Settings/URP-HighFidelity-Renderer.asset）；

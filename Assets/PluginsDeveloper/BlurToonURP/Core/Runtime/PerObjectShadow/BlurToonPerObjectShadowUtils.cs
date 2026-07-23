@@ -60,8 +60,9 @@ namespace BlurToonURP
         /// <summary>
         /// 为一个投射者构造视图矩阵与正交投影矩阵。
         ///
-        /// 视锥在 XY 上紧贴包围球（边长 = 2*radius），在 Z 上朝光源方向拉长 extrusion，
-        /// 使瓦片同时包含投射者自身与其与光源之间的场景遮挡物。
+        /// 视锥在 XY 上紧贴包围球（边长 = 2*radius），在 Z 上朝光源方向拉长 extrusion。
+        /// 瓦片里只画投射者自身，extrusion 仅用于加大近平面余量（容纳超出包围球的长武器、披风等），
+        /// 不是为了纳入场景遮挡物。
         /// </summary>
         /// <param name="shadowForward">阴影方向（光线传播方向）</param>
         /// <param name="center">包围球中心</param>
