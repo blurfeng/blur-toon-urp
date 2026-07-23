@@ -259,6 +259,8 @@ Shader "BlurToonURP/Lit"
             //URP 14 软阴影：质量由 _SHADOWS_SOFT_LOW/_MEDIUM/_HIGH 关键词区分（管线开启软阴影时会禁用通用 _SHADOWS_SOFT 只启用对应质量）。
             //必须声明全部变体，否则管线启用如 _SHADOWS_SOFT_MEDIUM 时本 Shader 无匹配变体 → 回退到无软阴影 → 即使勾选软阴影也是硬阴影。
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            //逐对象阴影：由 BlurToonPerObjectShadowFeature 逐帧开关。未添加该 Feature 或本帧无投射者时关闭，零开销。
+            #pragma multi_compile_fragment _ _BLURTOON_PER_OBJECT_SHADOW
             // Forward+ 渲染路径：附加光照改走聚簇(Cluster)光照循环，需此关键词让 LIGHT_LOOP_BEGIN 切换到聚簇迭代；
             // 缺失时在 Forward+ 渲染器下 GetAdditionalLightsCount 返回 0，附加光照(点光/聚光高光)会静默失效。
             #pragma multi_compile _ _FORWARD_PLUS
@@ -378,6 +380,8 @@ Shader "BlurToonURP/Lit"
             #include "BlurFunction.hlsl"
             //阴影函数库（低质量PCF主光阴影采样等）
             #include "ShadowFunction.hlsl"
+            //逐对象阴影函数库（高密度瓦片阴影图采样）
+            #include "PerObjectShadowFunction.hlsl"
 
             //==== 深度差边缘光 相关函数 ==================================================
             //跨投影的线性眼空间深度：透视用 LinearEyeDepth；正交按 near..far 线性还原（兼容反向Z）。
@@ -501,6 +505,16 @@ Shader "BlurToonURP/Lit"
                 //可选：用低质量PCF重采样主光阴影(更贴角色尺度、减透视锯齿)；默认关(0)时保持URP原采样
                 if (_ToggleShadowLowQualityPCF > 0.5)
                     lightMain.shadowAttenuation = MainLightShadowLowQualityPCF(mainLightShadowCoord, IN.positionWS);
+                //逐对象阴影：角色独占一块紧贴自身包围盒的阴影瓦片，纹素密度比级联高数倍，
+                //且投影尺寸已量化、中心已吸附到纹素栅格 → 硬边干净、光源与相机移动时不再逐帧重新量化。
+                //瓦片只画角色自身，场景投影仍由级联图提供，两者按 Feature 上的 CombineMode 合并
+                //（默认 SceneAndSelf：先把角色自身从级联图里剔除再取 min，场景投影与高清自阴影兼得）。
+                //未命中瓦片/超出距离时自动回退 URP 结果。
+                #if defined(_BLURTOON_PER_OBJECT_SHADOW)
+                lightMain.shadowAttenuation = BlurToonApplyPerObjectShadow(
+                    lightMain.shadowAttenuation, IN.positionWS, IN.normalWS, lightMain.direction,
+                    length(IN.positionWS - _WorldSpaceCameraPos), _ToggleShadowLowQualityPCF);
+                #endif
                 half3 colorLightMain = lightMain.color * lightMain.distanceAttenuation;
                 //阴影衰减
                 float shadowAttenuation = saturate(lightMain.shadowAttenuation - _FloatShadowIntensity);
@@ -865,6 +879,13 @@ Shader "BlurToonURP/Lit"
                 alphaFinal = saturate(clipAlpha);
                 #endif
                 half4 colorFinal = half4(colorFinalBlend, alphaFinal);
+
+                //逐对象阴影调试可视化（由 Feature 的 Debug Mode 驱动，默认关闭时被完全优化掉）
+                #if defined(_BLURTOON_PER_OBJECT_SHADOW)
+                half3 perObjDebugColor;
+                if (BlurToonPerObjectShadowDebug(IN.positionWS, IN.normalWS, perObjDebugColor))
+                    return half4(perObjDebugColor, alphaFinal);
+                #endif
 
                 return colorFinal;
             }
@@ -1257,6 +1278,8 @@ Shader "BlurToonURP/Lit"
             //URP 14 软阴影：质量由 _SHADOWS_SOFT_LOW/_MEDIUM/_HIGH 关键词区分（管线开启软阴影时会禁用通用 _SHADOWS_SOFT 只启用对应质量）。
             //必须声明全部变体，否则管线启用如 _SHADOWS_SOFT_MEDIUM 时本 Shader 无匹配变体 → 回退到无软阴影 → 即使勾选软阴影也是硬阴影。
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            //逐对象阴影：由 BlurToonPerObjectShadowFeature 逐帧开关。未添加该 Feature 或本帧无投射者时关闭，零开销。
+            #pragma multi_compile_fragment _ _BLURTOON_PER_OBJECT_SHADOW
 
             // BlurToonURP Keywords
             //外描边
@@ -1280,6 +1303,8 @@ Shader "BlurToonURP/Lit"
             #include "LitInput.hlsl"
             //阴影函数库（低质量PCF主光阴影采样等）
             #include "ShadowFunction.hlsl"
+            //逐对象阴影函数库（高密度瓦片阴影图采样）
+            #include "PerObjectShadowFunction.hlsl"
 
             //描边纹理贴图（描边专用纹理，用于给描边着色/图案，仅在指定贴图后启用关键词）
             #if defined(_OUTLINE_MAP_ON)
@@ -1411,6 +1436,14 @@ Shader "BlurToonURP/Lit"
                 //可选：低质量PCF重采样主光阴影，与基础Pass一致
                 if (_ToggleShadowLowQualityPCF > 0.5)
                     mainLight.shadowAttenuation = MainLightShadowLowQualityPCF(IN.shadowCoord, IN.positionWS);
+                //逐对象阴影：与基础Pass一致，保证描边与本体的受影表现同步
+                //描边 Pass 的 Varyings 不带世界法线，传 0 表示不做接收端法线偏移；
+                //描边是外扩的背面壳体，本身就离表面有距离，缺少这个偏移不会产生可见问题。
+                #if defined(_BLURTOON_PER_OBJECT_SHADOW)
+                mainLight.shadowAttenuation = BlurToonApplyPerObjectShadow(
+                    mainLight.shadowAttenuation, IN.positionWS, float3(0, 0, 0), mainLight.direction,
+                    length(IN.positionWS - _WorldSpaceCameraPos), _ToggleShadowLowQualityPCF);
+                #endif
                 half3 colorLightMain = mainLight.color * mainLight.distanceAttenuation;
                 //阴影衰减：与基础Pass一致，减去阴影强度偏移，并受“阴影接收”开关控制
                 half shadowAttenuation = lerp(1, saturate(mainLight.shadowAttenuation - _FloatShadowIntensity), _ToggleShadowReceive);
