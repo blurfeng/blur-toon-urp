@@ -1,4 +1,4 @@
-![](Documents~/EditorDemo.gif)
+![](Documents~/Header.gif)
 
 <p align="center">
   <!-- <img alt="GitHub Release" src="https://img.shields.io/github/v/release/blurfeng/BlurToonURP?color=blue"> -->
@@ -52,6 +52,9 @@
   - [MatCap 材质捕获](#matcap-材质捕获)
     - [Mask Map 遮罩贴图](#mask-map-遮罩贴图-2)
   - [Light Setting 光照设置](#light-setting-光照设置)
+  - [Per Object Shadow 逐对象阴影](#per-object-shadow-逐对象阴影)
+    - [合并方式](#合并方式)
+    - [Debug Mode 调试模式](#debug-mode-调试模式)
   - [渲染 Pass 说明](#渲染-pass-说明)
   - [Debug 调试](#debug-调试)
   - [Tools 工具](#tools-工具)
@@ -537,6 +540,8 @@ Shader 与编辑器源码位置：
 > ⚠ `低质量PCF` 仍需在 URP Asset 勾选 `Soft Shadows`——4-tap 的纹素偏移只有开启软阴影时才由管线上传，否则 4 个采样点重合、等同硬阴影，此开关将无可见效果。  
 > 实现见 `Core/Shaders/ShadowFunction.hlsl` 的 `MainLightShadowLowQualityPCF`。  
 
+> 以上均是在 URP 级联阴影图这一张图上做补偿，受限于角色在级联图里能分到的纹素数量。若阶梯与边缘跳变仍不可接受，见 [Per Object Shadow 逐对象阴影](#per-object-shadow-逐对象阴影)——它为角色单独分配高分辨率阴影瓦片，从源头提升纹素密度。  
+
 **内置光照（材质专属）**
 
 ![](Documents~/Feature_BuiltInLight.gif)
@@ -564,6 +569,123 @@ Shader 与编辑器源码位置：
 
 ---
 
+### Per Object Shadow 逐对象阴影
+`Renderer Feature + 场景组件，不在材质编辑器面板中`
+
+为角色单独分配一块紧贴其包围盒的高分辨率阴影瓦片，解决 URP 级联阴影图在角色尺度下纹素密度不足的问题。**不对阴影边缘做任何柔化**，NPR 的硬边完整保留。
+
+**要解决什么**
+
+以本工程的配置为例（阴影距离 150、4 级联、图集 4096 → 每级 2048），级联 0 的包围球直径约 13~14 m，摊到 2048 只有约 `6.4 mm/纹素`，一个 1.8 m 高的角色仅占约 280 纹素。由此产生两个问题：
+
+| 现象 | 成因 |
+| :-- | :-- |
+| NPR 硬边暴露出纹素阶梯 | 角色在 1080p 上占 900 px 高时，一个阴影纹素≈3 个屏幕像素 |
+| 光源/角色移动时边缘逐帧跳变 | 级联的纹素栅格随光源方向与相机位置重新量化 |
+
+本功能让角色独占一块瓦片：图集 2048 时，同屏 1 个角色 → 瓦片 2048（贴合 2.2 m 的角色约 `1.1 mm/纹素`），4 个 → 瓦片 1024（约 `2.1 mm/纹素`），密度提升 3~6 倍。配合包围半径量化与纹素吸附，角色移动时边缘也不再爬行。
+
+**启用步骤**
+
+1. 在 URP Renderer 资产（本工程为 `Assets/Settings/URP-HighFidelity-Renderer.asset`）上 `Add Renderer Feature` → `BlurToon Per Object Shadow`；
+2. 给角色根节点挂 `BlurToonURP/Per Object Shadow Caster (逐对象阴影投射者)` 组件；
+3. 确认主光的 `Shadow Type` 不是 `No Shadows`，且角色材质的 `阴影投射` 保持开启（关闭后该角色不会有自阴影）。
+
+> 组件的 Inspector 会直接显示**登记状态**与当前包围球尺寸。投射者通过静态表向 Feature 登记，一旦登记失败（组件被禁用、正在编辑预制体资产而非场景实例等）整套功能会静默失效且没有任何报错，因此把状态摆在面板上。  
+
+**工作方式**
+
+- 渲染时机为 `AfterRenderingShadows`，位于 URP 主光阴影之后、不透明物体之前，两张阴影图互不干扰。仅对 `Game` 与 `SceneView` 相机生效。
+- 瓦片使用**材质自带的 `ShadowCaster` Pass** 渲染，因此 `Lit.shader` 无需新增任何 Pass；材质上关闭 `阴影投射` 的部件同样不会进入瓦片，语义与场景阴影一致。
+- 逐个 `cmd.DrawRenderer` 显式提交投射者自己的渲染器，不走 `context.DrawShadows`——后者依赖 Unity 的阴影投射者剔除，实测在某些光源角度下会整块丢弃几何、导致自投影突然消失。
+- 代价是**瓦片里只有投射者自身，不含场景遮挡物**。角色收到的场景投影仍来自 URP 级联图，两者由 `Combine Mode` 决定如何合并（见下方[合并方式](#合并方式)）。
+- 图集按**本帧实际入选的投射者数量**动态划分为 `1×1 / 2×2 / 4×4`：画面里只有一个角色时它独占整张图集，不必加大图集内存即可翻倍纹素密度。代价是入选数量跨过 1/4/16 分界时瓦片尺寸会变，那一帧阴影质量有一次突变。
+- 关键词 `_BLURTOON_PER_OBJECT_SHADOW` 逐帧开关，本帧无投射者时完全关闭，着色器回退到 URP 阴影，零开销；未添加本 Feature 的工程连常量缓冲区都不会声明。
+
+**Feature 参数**（URP Renderer 资产上）
+
+| 分组 | 参数 | 默认 | 说明 |
+| :-- | :-- | :-- | :-- |
+| 图集 Atlas | `Atlas Size` | `2048` | 阴影图集总分辨率（512 / 1024 / 2048 / 4096） |
+| 图集 Atlas | `Max Caster Count` | `4` | 同屏最多处理的投射者数量（1~16）。超出者按优先级丢弃、回退 URP 级联阴影 |
+| 阴影方向 Direction | `Direction Mode` | `ViewBlend` | `MainLight`＝严格跟随主光，物理一致但光源旋转时纹素栅格整体旋转；`ViewBlend`＝以「角色→相机」视线为主并按比例混入主光，光源转动时投影基几乎不变，边缘极其稳定 |
+| 阴影方向 Direction | `View Blend To Light` | `0.2` | `ViewBlend` 下混入主光方向的比例。0＝完全跟随视线（最稳定但阴影几乎不随光变化），1＝等同 `MainLight` |
+| 阴影方向 Direction | `View Blend Pitch Clamp Degrees` | `(90, 150)` | `ViewBlend` 下限制阴影方向与世界上方向的夹角区间（度），避免俯视/仰视时出现不该有的自阴影 |
+| 范围 Range | `Max Distance` | `50` | 超过该距离（米）的投射者不再分配瓦片 |
+| 范围 Range | `Fade Range` | `5` | 在 `Max Distance` 之前多少米开始淡出回 URP 级联阴影，避免硬切换 |
+| 范围 Range | `Caster Extrusion` | `2` | 正交视锥朝光源方向额外拉长的距离（米），用于加大近平面余量。角色带长武器、披风等超出包围球的部件时可调大 |
+| 范围 Range | `Combine Mode` | `SceneAndSelf` | 与 URP 主光阴影的合并方式，见下方[合并方式](#合并方式) |
+| 范围 Range | `Self Reject Scale` | `1` | 仅 `SceneAndSelf`：自剔除距离倍率，见下方[合并方式](#合并方式) |
+| 偏移 Bias | `Depth Bias` / `Slope Bias` | `1.0` / `2.5` | 硬件光栅化深度偏移（常量项 / 坡度项）。用光栅化偏移而非顶点位移，因此不会随光源方向形变 caster 轮廓，阴影边界不会在表面上滑动 |
+| 偏移 Bias | `Normal Bias` | `0.5` | 投射端法线偏移，单位为**瓦片纹素**。沿法线内缩 caster，压制明暗交界处的自阴影碎裂。瓦片分辨率高，所需值远小于级联阴影 |
+| 偏移 Bias | `Receiver Normal Offset` | `1.5` | 接收端法线偏移，单位为**瓦片纹素**。掠射角下一个纹素在表面上覆盖极长一段，投射端 bias 无论怎么调都跟不上，整片表面会同时翻成自遮挡（即「光源转到与表面平行时突然全黑」）；接收端按纹素世界尺寸补偿是这种配置下唯一有效的手段。过大会让贴近表面的细小阴影漏光 |
+| 表现 Appearance | `Strength` | `1` | 阴影强度。1＝完全遮挡，0＝不产生阴影 |
+| 表现 Appearance | `Stabilize Texel Snapping` | `开` | 把投影矩阵吸附到纹素栅格，角色移动时边缘按整纹素跳变而不是连续爬行。需配合投射者上的 `Radius Quantize` 一起使用 |
+| 调试 Debug | `Debug Mode` | `Off` | 把瓦片内容直接画到角色上，见下方 [Debug Mode 调试模式](#debug-mode-调试模式)。**发布前记得关闭** |
+
+**投射者组件参数**（角色根节点上）
+
+| 参数 | 默认 | 说明 |
+| :-- | :-- | :-- |
+| `Renderers` | 空 | 参与包围盒计算的渲染器。留空则在启用时自动收集子层级下的全部渲染器。运行时换装等增删部件后需手动调用 `RefreshRenderers()` |
+| `Bounds Padding` | `0.1` | 包围盒外扩（米）。避免动作幅度大时肢体擦出瓦片边界导致阴影被裁掉 |
+| `Radius Quantize` | `0.25` | 包围半径的量化步长（米）。骨骼动画会让包围盒逐帧变化，若正交投影尺寸跟着变，纹素大小就逐帧改变、纹素吸附完全失效。向上取整到该步长可锁定投影尺寸，是消除运动时边缘爬行的关键。设为 0 表示不量化（不推荐） |
+| `Priority Bias` | `0` | 同屏投射者超过上限时，按「距离相机近 + 处于画面中心」排序取前 N 个，此值直接加到排序权重上（越小越优先）。主角可设为负值以确保永远拿得到瓦片 |
+
+> 包围球半径取 AABB 对角线的一半，保证任意光照方向下正交投影都能完整罩住对象，不必随光源方向重新拟合（重新拟合会让投影尺寸随光源变化，正是要避免的抖动来源）。选中对象时 Scene 视图会绘制该包围球线框。  
+
+#### 合并方式
+瓦片只包含投射者自身，因此 `Combine Mode` 直接决定角色能否收到场景投影：
+
+| 模式 | 行为 | 代价 |
+| :-- | :-- | :-- |
+| `Min` 取较暗者 | 角色同时收到 URP 场景投影与瓦片的高密度自阴影 | URP 级联里那份低分辨率的角色自阴影仍然存在，阶梯不会完全消失 |
+| `Replace` 命中即替换 | 命中瓦片时完全用瓦片结果替换，自阴影边缘最干净 | **角色收不到场景投射到它身上的阴影**，仅适合无场景遮挡的演出镜头（立绘、换装界面） |
+| `SceneAndSelf`（默认，推荐） | 场景投影 + 高清自阴影，两者兼得 | 需要阴影图路径，见下方说明 |
+
+`Min` 与 `Replace` 的两难来自同一件事：**角色同时存在于两张阴影图里**。`SceneAndSelf` 在采样级联图前，把采样点沿主光方向推离本体一段距离（自剔除偏移），使角色自身写入级联图的那部分深度不再能遮挡自己——级联图于是只剩下场景遮挡物的贡献，再与瓦片的自阴影取 min，两份阴影各司其职、互不污染。
+
+沿光方向平移不改变光空间的 xy，采样的仍是同一个纹素，因此阴影图案**不会有任何横向位移**，只是深度比较的基准前移了。
+
+自剔除的基准距离由着色器**逐像素**算出：从该像素沿主光方向走多远才能离开角色的包围球（射线—球求交），朝光面接近 0、背光面接近包围球直径。`Self Reject Scale` 是它的倍率：
+
+| 取值 | 效果 |
+| :-- | :-- |
+| `1`（默认） | 刚好剔到包围球边界 |
+| 调小 | URP 那份低分辨率自阴影重新渗出 |
+| 调大 | 连贴近角色的场景遮挡物也一起剔掉，导致近处物体投不到角色身上 |
+| `0` | 完全关闭自剔除，等同 `Min` |
+
+> ⚠ `SceneAndSelf` 需要按世界位置重采样级联图，**屏幕空间阴影**（URP Asset 的 `Screen Space Shadows`，关键词 `_MAIN_LIGHT_SHADOWS_SCREEN`）下无法做到，此模式自动失效并回退 `Min`。  
+> 重采样时会尊重材质上的 `低质量PCF` 开关，与 `ForwardLit` 的主光阴影采样保持一致。  
+
+#### Debug Mode 调试模式
+排查「阴影从哪来」时直接看瓦片本身，比在最终画面里猜可靠得多。
+
+| 模式 | 显示内容 | 怎么读 |
+| :-- | :-- | :-- |
+| `Off` | 关闭 | — |
+| `ShadowValue` | 阴影值灰度 | 白＝无遮挡，黑＝完全遮挡。出现细碎噪点/条纹即为自阴影粉刺（bias 不足） |
+| `TileCoverage` | 瓦片覆盖 | 绿＝像素落在瓦片内，红＝落在瓦片外（回退 URP 阴影）。角色身上出现红色说明瓦片没罩住 |
+| `TileUV` | 瓦片 UV | 红绿渐变应平滑铺满角色。某个光源角度下突然整体偏移/翻转即为矩阵构造有跳变 |
+| `AtlasDepth` | 图集原始深度 | 反向 Z 下 1＝近 0＝远，清空值为远(0)。角色所在处一片纯黑 → 几何根本没进图集（剔除问题）；能看到深度渐变 → 瓦片有内容，问题在采样端 |
+| `ReceiverDepth` | 接收端深度 | 该像素在瓦片里的 z，应平滑铺满角色且落在 (0,1) 开区间内。大片贴死在 0 或 1 → 深度范围没罩住角色 |
+| `TexelDensity` | 纹素密度棋盘 | 一格＝一个阴影纹素。**判断「边缘锯齿还有没有救」的客观依据**：格子小于一个屏幕像素说明台阶是像素级的，后处理抗锯齿能解决；格子明显大于一个屏幕像素说明台阶比像素还大，只能提高 `Atlas Size`、减少同屏投射者数量或收小包围球 |
+
+**源码位置**
+
+| 文件 | 作用 |
+| :-- | :-- |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowFeature.cs` | Renderer Feature 入口 |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowPass.cs` | 渲染 Pass：筛选、分块、绘制、上传常量 |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowSettings.cs` | 可序列化配置与枚举 |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowUtils.cs` | 矩阵构造、纹素吸附、优先级排序 |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowCaster.cs` | 投射者组件 |
+| `Core/Editor/BlurToonPerObjectShadowCasterEditor.cs` | 投射者检视面板（登记状态显示） |
+| `Core/Shaders/PerObjectShadowFunction.hlsl` | 着色器端采样函数库 |
+
+---
+
 ### 渲染 Pass 说明
 除 `ForwardLit`（基础光照）与 `Outline`（外描边）外，还包含以下 Pass，保证物体在完整 URP 渲染流程中正常工作：
 
@@ -584,6 +706,7 @@ Shader 与编辑器源码位置：
 | `DepthNormals` | `[_IntRenderFaceType]` | ✅ | ❌ | ❌ |
 
 > 三个附加 Pass 均支持透明度裁切（`_ALPHATEST_ON`），使镂空物体的阴影与深度/法线轮廓与本体一致。  
+> `ShadowCaster` Pass 同时被 [Per Object Shadow 逐对象阴影](#per-object-shadow-逐对象阴影) 用于渲染逐对象阴影图集，因此该功能不需要为 `Lit.shader` 新增任何 Pass。  
 
 ---
 

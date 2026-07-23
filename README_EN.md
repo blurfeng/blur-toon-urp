@@ -1,4 +1,4 @@
-![](Documents~/EditorDemo.gif)
+![](Documents~/Header.gif)
 
 <p align="center">
   <!-- <img alt="GitHub Release" src="https://img.shields.io/github/v/release/blurfeng/BlurToonURP?color=blue"> -->
@@ -52,6 +52,9 @@ It uses the MIT license, so you are free to use this project however you like.
   - [MatCap](#matcap)
     - [Mask Map](#mask-map-2)
   - [Light Setting](#light-setting)
+  - [Per Object Shadow](#per-object-shadow)
+    - [Combine Mode](#combine-mode)
+    - [Debug Mode](#debug-mode)
   - [Render Pass Overview](#render-pass-overview)
   - [Debug](#debug)
   - [Tools](#tools)
@@ -539,6 +542,8 @@ Among these, `Outline` makes the outline follow the main light color and darken 
 > ⚠ `Low Quality PCF` still requires `Soft Shadows` to be checked in the URP Asset — the 4-tap texel offsets are only uploaded by the pipeline when soft shadows are enabled; otherwise the 4 sample points coincide, which is equivalent to hard shadows and this toggle will have no visible effect.  
 > See `MainLightShadowLowQualityPCF` in `Core/Shaders/ShadowFunction.hlsl` for the implementation.  
 
+> All of the above compensate on a single map — the URP cascade shadow map — and are limited by how many texels the character gets in it. If the stair-stepping and edge jitter are still unacceptable, see [Per Object Shadow](#per-object-shadow), which allocates the character its own high-resolution shadow tile and raises texel density at the source.  
+
 **Built-In Light (material-specific)**
 
 ![](Documents~/Feature_BuiltInLight.gif)
@@ -566,6 +571,123 @@ Locks the light height to horizontal so that light and dark vary along the horiz
 
 ---
 
+### Per Object Shadow
+`Renderer Feature + scene component — not part of the material editor panel`
+
+Allocates each character its own high-resolution shadow tile fitted tightly to its bounding box, solving the insufficient texel density of the URP cascade shadow map at character scale. It applies **no softening whatsoever** to the shadow edge — the NPR hard edge is fully preserved.
+
+**The problem it solves**
+
+Take this project's configuration as an example (shadow distance 150, 4 cascades, atlas 4096 → 2048 per cascade): cascade 0's bounding sphere is roughly 13~14 m across, which over 2048 texels comes to only about `6.4 mm/texel`, so a 1.8 m tall character occupies roughly 280 texels. Two problems follow:
+
+| Symptom | Cause |
+| :-- | :-- |
+| The NPR hard edge exposes texel stair-stepping | When the character covers 900 px of a 1080p screen, one shadow texel ≈ 3 screen pixels |
+| The edge jumps frame to frame as the light or character moves | The cascade's texel grid is re-quantized as the light direction and camera position change |
+
+This feature gives the character a tile of its own: with a 2048 atlas, 1 character on screen → a 2048 tile (about `1.1 mm/texel` fitted to a 2.2 m character), 4 characters → a 1024 tile (about `2.1 mm/texel`) — a 3~6× density increase. Combined with bounding-radius quantization and texel snapping, the edge no longer crawls as the character moves.
+
+**Setup**
+
+1. On the URP Renderer asset (`Assets/Settings/URP-HighFidelity-Renderer.asset` in this project), `Add Renderer Feature` → `BlurToon Per Object Shadow`;
+2. Attach the `BlurToonURP/Per Object Shadow Caster` component to the character's root node;
+3. Make sure the main light's `Shadow Type` is not `No Shadows`, and that the character material's `Shadow Cast` stays enabled (disabling it means the character gets no self-shadow).
+
+> The component's Inspector displays the **registration status** and the current bounding sphere directly. Casters register with the Feature through a static list, and if registration fails (component disabled, editing the prefab asset rather than a scene instance, etc.) the whole feature silently does nothing with no error at all — hence the status readout on the panel.  
+
+**How it works**
+
+- Runs at `AfterRenderingShadows`, after the URP main light shadows and before opaque geometry, so the two shadow maps do not interfere. Only active for `Game` and `SceneView` cameras.
+- Tiles are rendered with the **material's own `ShadowCaster` Pass**, so `Lit.shader` needs no additional Pass; parts whose material has `Shadow Cast` disabled likewise never enter the tile, matching scene-shadow semantics.
+- Renderers are submitted explicitly one by one via `cmd.DrawRenderer` rather than `context.DrawShadows` — the latter relies on Unity's shadow-caster culling, which in practice discarded whole chunks of geometry at certain light angles, making the self-shadow suddenly disappear.
+- The cost is that **the tile contains only the caster itself, no scene occluders**. Scene shadows cast onto the character still come from the URP cascade map, and `Combine Mode` decides how the two are merged (see [Combine Mode](#combine-mode) below).
+- The atlas is subdivided into `1×1 / 2×2 / 4×4` based on **how many casters were actually selected this frame**: with a single character on screen it owns the entire atlas, doubling texel density without increasing atlas memory. The trade-off is that crossing the 1/4/16 boundaries changes the tile size, causing a one-frame jump in shadow quality.
+- The `_BLURTOON_PER_OBJECT_SHADOW` keyword is toggled per frame; with no casters it is fully off, the shader falls back to URP shadows at zero cost, and projects that never add this Feature do not even declare the constant buffer.
+
+**Feature parameters** (on the URP Renderer asset)
+
+| Group | Parameter | Default | Description |
+| :-- | :-- | :-- | :-- |
+| Atlas | `Atlas Size` | `2048` | Total shadow atlas resolution (512 / 1024 / 2048 / 4096) |
+| Atlas | `Max Caster Count` | `4` | Maximum casters handled on screen (1~16). Extras are dropped by priority and fall back to URP cascade shadows |
+| Direction | `Direction Mode` | `ViewBlend` | `MainLight` = strictly follows the main light, physically consistent but the texel grid rotates as a whole when the light rotates; `ViewBlend` = primarily the "character → camera" view direction with the main light blended in proportionally, so the projection basis barely changes as the light rotates and the edge is extremely stable |
+| Direction | `View Blend To Light` | `0.2` | Proportion of the main light direction blended in under `ViewBlend`. 0 = fully follows the view (most stable but the shadow barely reacts to the light), 1 = equivalent to `MainLight` |
+| Direction | `View Blend Pitch Clamp Degrees` | `(90, 150)` | Under `ViewBlend`, clamps the angle (degrees) between the shadow direction and world up, avoiding spurious self-shadows when looking straight down or up |
+| Range | `Max Distance` | `50` | Casters beyond this distance (meters) no longer get a tile |
+| Range | `Fade Range` | `5` | How many meters before `Max Distance` to start fading back to URP cascade shadows, avoiding a hard switch |
+| Range | `Caster Extrusion` | `2` | Extra distance (meters) the orthographic frustum is extended toward the light, used to widen the near-plane margin. Increase it for characters with long weapons, capes, or other parts extending past the bounding sphere |
+| Range | `Combine Mode` | `SceneAndSelf` | How to merge with URP main light shadows — see [Combine Mode](#combine-mode) below |
+| Range | `Self Reject Scale` | `1` | `SceneAndSelf` only: self-rejection distance multiplier — see [Combine Mode](#combine-mode) below |
+| Bias | `Depth Bias` / `Slope Bias` | `1.0` / `2.5` | Hardware rasterizer depth bias (constant / slope term). Using a rasterizer bias rather than vertex displacement means the caster silhouette is not deformed by the light direction, so the shadow boundary does not slide across the surface |
+| Bias | `Normal Bias` | `0.5` | Caster-side normal bias, in units of **tile texels**. Shrinks the caster along its normal to suppress self-shadow break-up at the terminator. Because tile resolution is high, the required value is far smaller than for cascade shadows |
+| Bias | `Receiver Normal Offset` | `1.5` | Receiver-side normal offset, in units of **tile texels**. At grazing angles a single texel covers a very long stretch of the surface; no amount of caster-side bias can keep up with that scale and the whole surface flips to self-occluded at once (the "everything suddenly goes black when the light turns parallel to the surface" case). Compensating on the receiver side by the texel's world size is the only effective remedy in this configuration. Too large a value leaks light through small shadows close to the surface |
+| Appearance | `Strength` | `1` | Shadow strength. 1 = fully occluded, 0 = no shadow at all |
+| Appearance | `Stabilize Texel Snapping` | `on` | Snaps the projection matrix to the texel grid so the edge jumps by whole texels as the character moves instead of crawling continuously. Use together with `Radius Quantize` on the caster |
+| Debug | `Debug Mode` | `Off` | Draws the tile contents directly onto the character — see [Debug Mode](#debug-mode) below. **Remember to turn it off before shipping** |
+
+**Caster component parameters** (on the character root node)
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `Renderers` | empty | Renderers included in the bounding box calculation. Leave empty to automatically collect all renderers in the child hierarchy on enable. After adding/removing parts at runtime (outfit changes, etc.), call `RefreshRenderers()` manually |
+| `Bounds Padding` | `0.1` | Bounding box padding (meters). Prevents limbs from clipping out of the tile boundary during large motions, which would cut off the shadow |
+| `Radius Quantize` | `0.25` | Quantization step (meters) for the bounding radius. Skeletal animation makes the bounding box change every frame, and if the orthographic projection size follows it, texel size changes every frame and texel snapping becomes useless. Rounding the radius up to this step locks the projection size and is the key to eliminating edge crawl during motion. 0 = no quantization (not recommended) |
+| `Priority Bias` | `0` | When on-screen casters exceed the limit, the top N are selected by "close to the camera + near screen center"; this value is added directly to the sort weight (lower = higher priority). Set it negative on the main character so it always gets a tile |
+
+> The bounding sphere radius is half the AABB diagonal, guaranteeing the orthographic projection fully covers the object from any lighting direction without refitting per light direction (refitting would make the projection size vary with the light — exactly the source of jitter being avoided). The sphere is drawn as a wireframe gizmo in the Scene view when the object is selected.  
+
+#### Combine Mode
+Since the tile contains only the caster itself, `Combine Mode` directly determines whether the character can receive scene shadows:
+
+| Mode | Behavior | Cost |
+| :-- | :-- | :-- |
+| `Min` | The character receives both the URP scene shadow and the tile's high-density self-shadow | The low-resolution character self-shadow in the URP cascade is still present, so the stair-stepping does not fully disappear |
+| `Replace` | On a tile hit, the tile result replaces everything — the cleanest self-shadow edge | **The character receives no shadows cast onto it by the scene.** Only suitable for cutscene-style shots with no scene occluders (character portraits, outfit screens) |
+| `SceneAndSelf` (default, recommended) | Scene shadows + high-resolution self-shadow, both at once | Requires the shadow-map path, see the note below |
+
+The `Min` vs. `Replace` dilemma comes from one thing: **the character exists in both shadow maps.** `SceneAndSelf` pushes the sample point away from the body along the main light direction before sampling the cascade map (the self-rejection offset), so the depth the character itself wrote into the cascade map can no longer occlude it. The cascade map is then left with only the scene occluders' contribution, and taking the min with the tile's self-shadow lets each shadow source do its own job without polluting the other.
+
+Translating along the light direction does not change the light-space xy, so the same texel is still sampled and the shadow pattern **does not shift laterally at all** — only the depth comparison reference moves forward.
+
+The base self-rejection distance is computed **per pixel** by the shader: how far the pixel must travel along the main light direction to leave the character's bounding sphere (ray–sphere intersection) — near 0 on the lit face, near the sphere diameter on the back face. `Self Reject Scale` is its multiplier:
+
+| Value | Effect |
+| :-- | :-- |
+| `1` (default) | Rejects exactly up to the bounding sphere boundary |
+| Lower | The low-resolution URP self-shadow starts bleeding back in |
+| Higher | Scene occluders close to the character get rejected too, so nearby objects fail to cast onto the character |
+| `0` | Self-rejection fully disabled, equivalent to `Min` |
+
+> ⚠ `SceneAndSelf` needs to resample the cascade map by world position, which is impossible under **screen space shadows** (`Screen Space Shadows` in the URP Asset, keyword `_MAIN_LIGHT_SHADOWS_SCREEN`); the mode automatically deactivates and falls back to `Min`.  
+> The resampling respects the material's `Low Quality PCF` toggle, staying consistent with the main light shadow sampling in `ForwardLit`.  
+
+#### Debug Mode
+When tracking down "where is this shadow coming from", looking at the tile itself is far more reliable than guessing from the final image.
+
+| Mode | Displays | How to read it |
+| :-- | :-- | :-- |
+| `Off` | Disabled | — |
+| `ShadowValue` | Shadow value as grayscale | White = unoccluded, black = fully occluded. Fine noise/stripes indicate shadow acne (insufficient bias) |
+| `TileCoverage` | Tile coverage | Green = the pixel falls inside a tile, red = outside it (falls back to URP shadows). Red on the character means the tile does not cover it |
+| `TileUV` | Tile UV | The red/green gradient should fill the character smoothly. A sudden overall shift/flip at some light angle indicates a discontinuity in matrix construction |
+| `AtlasDepth` | Raw atlas depth | With reversed Z, 1 = near and 0 = far, and the clear value is far (0). Solid black where the character is → the geometry never made it into the atlas (a culling problem); a visible depth gradient → the tile has content and the problem is on the sampling side |
+| `ReceiverDepth` | Receiver-side depth | The pixel's z within the tile; it should fill the character smoothly and stay in the open interval (0,1). Large areas pinned at 0 or 1 → the depth range does not cover the character |
+| `TexelDensity` | Texel density checkerboard | One square = one shadow texel. **The objective basis for judging whether edge aliasing is still fixable**: squares smaller than a screen pixel mean the steps are pixel-scale and post-process AA can handle them; squares clearly larger than a screen pixel mean the steps are bigger than a pixel, and the only remedies are raising `Atlas Size`, reducing the on-screen caster count, or shrinking the bounding sphere |
+
+**Source locations**
+
+| File | Purpose |
+| :-- | :-- |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowFeature.cs` | Renderer Feature entry point |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowPass.cs` | Render Pass: selection, tiling, drawing, constant upload |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowSettings.cs` | Serializable settings and enums |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowUtils.cs` | Matrix construction, texel snapping, priority sorting |
+| `Core/Runtime/PerObjectShadow/BlurToonPerObjectShadowCaster.cs` | Caster component |
+| `Core/Editor/BlurToonPerObjectShadowCasterEditor.cs` | Caster inspector (registration status readout) |
+| `Core/Shaders/PerObjectShadowFunction.hlsl` | Shader-side sampling function library |
+
+---
+
 ### Render Pass Overview
 In addition to `ForwardLit` (base lighting) and `Outline`, the following Passes are included to make sure objects work correctly within the full URP rendering flow:
 
@@ -586,6 +708,7 @@ Overview of each Pass's render states:
 | `DepthNormals` | `[_IntRenderFaceType]` | ✅ | ❌ | ❌ |
 
 > All three additional Passes support alpha clipping (`_ALPHATEST_ON`), keeping the shadows and depth/normal silhouettes of cut-out objects consistent with the body.  
+> The `ShadowCaster` Pass is also used by [Per Object Shadow](#per-object-shadow) to render the per-object shadow atlas, which is why that feature needs no additional Pass in `Lit.shader`.  
 
 ---
 
